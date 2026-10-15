@@ -11,7 +11,7 @@ interface Props {
   raised: boolean;
 }
 
-const WELCOME = "Hi! I'm Sigma Copilot. Ask me anything about your trip: what to pack, visas, the best hotel, what to do on Day 2… You can ask in Malayalam or English.";
+const WELCOME = "Hi! I'm Sigma Copilot. Ask me anything about your trip: what to pack, visas, the best hotel, or what to do on Day 2.";
 
 export function CopilotDrawer({ guestId, getContext, hasPlan, raised }: Props) {
   const [open, setOpen] = useState(false);

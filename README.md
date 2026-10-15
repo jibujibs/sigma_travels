@@ -60,7 +60,7 @@ Row Level Security is on with no policies, so browsers can't read the tables; on
 
 ## Sigma Copilot
 
-The **Sigma Copilot** button opens a side chat. Each question is sent to `/api/chat` with a text summary of what's on screen (form, recommendations, current plan and quote), and Gemini answers in the language of the question. If Gemini is unavailable, Copilot replies with a short notice instead of failing. History is saved in Supabase when it's configured.
+The **Sigma Copilot** button opens a side chat. Each question is sent to `/api/chat` with a text summary of what's on screen (form, recommendations, current plan and quote), and Gemini answers in English. If Gemini is unavailable, Copilot replies with a short notice instead of failing. History is saved in Supabase when it's configured.
 
 ## Notes
 
