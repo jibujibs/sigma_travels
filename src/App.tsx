@@ -6,7 +6,7 @@ import { Recommendations } from "./components/Recommendations";
 import { api } from "./lib/api";
 import { addDays, iso, todayUTC } from "./lib/format";
 import { downloadTripPdf } from "./lib/pdf";
-import type { PlanState } from "./lib/trip";
+import { bestReturn, type PlanState } from "./lib/trip";
 
 const STORE = "sigma-ai-planner-v1";
 
@@ -14,37 +14,35 @@ const defaultBrief = (): TripBrief => ({
   idea: "", origin: "Kochi (COK)", start: iso(addDays(todayUTC(), 30)), days: 7, pax: 2, budget: "Mid-range", interests: [],
 });
 
-interface Saved { brief: TripBrief; recs: Recommendation[] | null; planState: PlanState | null; example: boolean; model?: string }
+/** Only the traveller's preferences survive a refresh; results always start empty. */
+interface Prefs { origin: string; start: string; days: number; pax: number; budget: TripBrief["budget"] }
 
-function load(): Saved {
-  const fresh: Saved = { brief: defaultBrief(), recs: null, planState: null, example: false };
+function loadBrief(): TripBrief {
+  const brief = defaultBrief();
   try {
-    const v = JSON.parse(localStorage.getItem(STORE) ?? "null") as Saved | null;
-    if (!v?.brief) return fresh;
-    // A page refresh starts a fresh search: clear the idea and interests, keep the
-    // traveller's preferences (home city, days, adults, budget, future start date).
-    const brief: TripBrief = {
-      ...v.brief,
-      idea: "",
-      interests: [],
-      start: v.brief.start < iso(todayUTC()) ? defaultBrief().start : v.brief.start,
+    const raw = JSON.parse(localStorage.getItem(STORE) ?? "null") as (Partial<Prefs> & { brief?: Partial<Prefs> }) | null;
+    const p = raw?.brief ?? raw; // older versions saved { brief, recs, planState, ... }
+    if (!p) return brief;
+    return {
+      ...brief,
+      origin: typeof p.origin === "string" && p.origin.trim() ? p.origin : brief.origin,
+      start: typeof p.start === "string" && p.start >= iso(todayUTC()) ? p.start : brief.start,
+      days: Number(p.days) >= 3 && Number(p.days) <= 10 ? Number(p.days) : brief.days,
+      pax: Number(p.pax) >= 1 && Number(p.pax) <= 6 ? Number(p.pax) : brief.pax,
+      budget: p.budget === "Budget" || p.budget === "Luxury" || p.budget === "Mid-range" ? p.budget : brief.budget,
     };
-    // Older versions saved a built-in Kochi–Delhi example; never bring that back.
-    const planState = v.example || !v.planState?.plan ? null : v.planState;
-    return { brief, recs: v.recs ?? null, planState, example: false, model: v.model };
   } catch {
-    return fresh;
+    return brief;
   }
 }
 
 type Busy = { label: string; startedAt: number } | null;
 
 export default function App() {
-  const initial = useRef(load()).current;
-  const [brief, setBrief] = useState<TripBrief>(initial.brief);
-  const [recs, setRecs] = useState<Recommendation[] | null>(initial.recs);
-  const [planState, setPlanState] = useState<PlanState | null>(initial.planState);
-  const [model, setModel] = useState<string | undefined>(initial.model);
+  const [brief, setBrief] = useState<TripBrief>(loadBrief);
+  const [recs, setRecs] = useState<Recommendation[] | null>(null);
+  const [planState, setPlanState] = useState<PlanState | null>(null);
+  const [model, setModel] = useState<string | undefined>();
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string>();
@@ -54,8 +52,9 @@ export default function App() {
   const toastTimer = useRef<number>(undefined);
 
   useEffect(() => {
-    try { localStorage.setItem(STORE, JSON.stringify({ brief, recs, planState, example: false, model })); } catch { /* storage full or blocked */ }
-  }, [brief, recs, planState, model]);
+    const prefs: Prefs = { origin: brief.origin, start: brief.start, days: brief.days, pax: brief.pax, budget: brief.budget };
+    try { localStorage.setItem(STORE, JSON.stringify(prefs)); } catch { /* storage full or blocked */ }
+  }, [brief.origin, brief.start, brief.days, brief.pax, brief.budget]);
 
   useEffect(() => {
     if (!busy) return;
@@ -101,7 +100,7 @@ export default function App() {
   async function plan(rec: Recommendation) {
     const r = await run(`Planning ${rec.city}: flights, hotel, car and ${brief.days} days`, (s) => api.plan(brief, rec, s));
     if (!r) return;
-    setPlanState({ brief: { ...brief }, plan: r.plan, sel: { out: 0, ret: 0, hotel: 0, car: 0 }, carOn: r.plan.car_days > 0, food: "mid" });
+    setPlanState({ brief: { ...brief }, plan: r.plan, sel: { out: 0, ret: bestReturn(r.plan), hotel: 0, car: 0 }, carOn: r.plan.car_days > 0, food: "mid" });
     setModel(r.model);
     toast(`${rec.city} plan ready`);
     setTimeout(() => document.getElementById("plan")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);

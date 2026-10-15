@@ -20,4 +20,7 @@ export function originCode(o: string): string {
   const m = /\(([A-Za-z]{3})\)/.exec(o);
   return m ? m[1].toUpperCase() : o.trim().slice(0, 3).toUpperCase();
 }
-export const originCity = (o: string) => o.replace(/\s*\(.*\)\s*/, "").trim() || o;
+export const originCity = (o: string) => {
+  const c = o.replace(/\s*\(.*\)\s*/, "").trim() || o;
+  return c.replace(/\b\p{Ll}/gu, (ch) => ch.toUpperCase());
+};

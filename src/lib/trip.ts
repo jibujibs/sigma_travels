@@ -11,6 +11,26 @@ const FOOD_X: Record<FoodStyle, number> = { street: 0.6, mid: 1, fine: 2.2 };
 export interface BuiltStop extends Stop { isClosed: boolean }
 export interface BuiltDay { title: string; date: Date; stops: BuiltStop[]; warn: number }
 
+const mins = (t: string) => { const m = /^(\d{2}):(\d{2})$/.exec(t); return m ? +m[1] * 60 + +m[2] : -1; };
+
+/** Home airport code: "(TRV)" typed by the user, else the origin of Gemini's outbound route, else the first letters. */
+export function homeCode(plan: TripPlan, origin: string): string {
+  const typed = /\(([A-Za-z]{3})\)/.exec(origin);
+  if (typed) return typed[1].toUpperCase();
+  const route = /^\s*([A-Z]{3})\b/.exec(plan.flights.outbound[0]?.route ?? "");
+  return route ? route[1] : originCode(origin);
+}
+
+/** Default return flight: the earliest one leaving at least 2 h after the last activity of the final day. */
+export function bestReturn(plan: TripPlan): number {
+  const last = plan.days[plan.days.length - 1];
+  const lastStop = Math.max(-1, ...(last?.stops ?? []).map((s) => mins(s.time)));
+  const opts = plan.flights.return.map((f, i) => ({ i, t: mins(f.depart) }));
+  const ok = opts.filter((o) => o.t >= lastStop + 120).sort((a, b) => a.t - b.t);
+  if (ok.length) return ok[0].i;
+  return opts.sort((a, b) => b.t - a.t)[0]?.i ?? 0;
+}
+
 export function picks(s: PlanState) {
   const p = s.plan;
   return {
@@ -30,7 +50,7 @@ export function buildDays(s: PlanState): BuiltDay[] {
   const carLabel = car ? car.name + (car.company ? " · " + car.company : "") : "rental car";
   const sub = (t: string) => t.replace(/\{hotel\}/g, hotel?.name ?? "your hotel").replace(/\{car\}/g, carLabel);
   const flightNote = (f: typeof out) => [f.stops, f.duration, f.arrive ? `lands ${f.arrive}${f.arrive_next_day ? " (+1 day)" : ""}` : ""].filter(Boolean).join(" · ");
-  const dest = plan.destination.airport, home = originCode(brief.origin);
+  const dest = plan.destination.airport, home = homeCode(plan, brief.origin);
 
   return plan.days.map((d, i) => {
     const stops: Stop[] = d.stops
@@ -40,7 +60,11 @@ export function buildDays(s: PlanState): BuiltDay[] {
     if (i === plan.days.length - 1 && ret) stops.push({ time: ret.depart, kind: "flight", name: `${ret.airline} · ${ret.route || dest + " → " + home}`, note: flightNote(ret), closed: [] });
     const date = addDays(start, i);
     const dow = date.getUTCDay();
-    const built = stops.map((x) => ({ ...x, isClosed: x.closed.includes(dow) }));
+    // Keep the day in time order (Gemini's stops and the chosen flight can interleave).
+    const built = stops
+      .map((x, k) => ({ ...x, isClosed: x.closed.includes(dow), k }))
+      .sort((a, b) => (mins(a.time) < 0 || mins(b.time) < 0 ? a.k - b.k : mins(a.time) - mins(b.time) || a.k - b.k))
+      .map(({ k: _k, ...x }) => x);
     return { title: d.title, date, stops: built, warn: built.filter((x) => x.isClosed).length };
   });
 }

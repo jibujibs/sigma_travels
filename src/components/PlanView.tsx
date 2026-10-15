@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Flight } from "../../shared/types";
-import { addDays, DOW, fmtDate, inr, iso, originCity, originCode, parseISO, todayUTC } from "../lib/format";
-import { buildDays, price, type FoodStyle, type PlanState, type Selection } from "../lib/trip";
+import { addDays, DOW, fmtDate, inr, iso, originCity, parseISO, todayUTC } from "../lib/format";
+import { buildDays, homeCode, price, type FoodStyle, type PlanState, type Selection } from "../lib/trip";
 
 interface Props {
   state: PlanState;
@@ -72,7 +72,7 @@ export function PlanView({ state, example, model, onChange, onPdf, onNewTrip, to
         <div className="pass-main">
           <div><span className="badge">{example ? "Example plan" : "Planned by Gemini · estimates"}</span>{model && !example && <span className="model"> &nbsp;{model}</span>}</div>
           <div className="route">
-            <div><div className="iata">{originCode(brief.origin)}</div><div className="city">{originCity(brief.origin)}</div></div>
+            <div><div className="iata">{homeCode(plan, brief.origin)}</div><div className="city">{originCity(brief.origin)}</div></div>
             <div className="plane" aria-hidden="true" />
             <div><div className="iata">{plan.destination.airport}</div><div className="city">{plan.destination.city}{plan.destination.country ? `, ${plan.destination.country}` : ""}</div></div>
           </div>

@@ -1,6 +1,6 @@
 import type { PDFFont, PDFPage, RGB } from "pdf-lib";
-import { addDays, fmtDate, fmtLong, inrPlain, originCity, originCode, parseISO } from "./format";
-import { buildDays, FOOD_LABEL, picks, price, type PlanState } from "./trip";
+import { addDays, fmtDate, fmtLong, inrPlain, originCity, parseISO } from "./format";
+import { buildDays, FOOD_LABEL, homeCode, picks, price, type PlanState } from "./trip";
 
 /* Standard PDF fonts only cover Latin-1/Windows-1252. Map what we can, drop the rest. */
 const CP1252_EXTRA = "€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ";
@@ -124,7 +124,7 @@ export async function downloadTripPdf(state: PlanState): Promise<void> {
   page.drawRectangle({ x: 0, y: PH - band, width: PW, height: band, color: C.teal });
   draw("SIGMA TRAVELS · TRIP ITINERARY", M, PH - 32, 9, bold, C.white);
   draw(dest, M, PH - 62, 24, bold, C.white);
-  draw(`${originCity(brief.origin)} (${originCode(brief.origin)}) -> ${plan.destination.city} (${plan.destination.airport})  ·  ${fmtLong(start)} – ${fmtLong(end)}  ·  ${brief.pax} adult${brief.pax > 1 ? "s" : ""}`, M, PH - 84, 10, font, C.white);
+  draw(`${originCity(brief.origin)} (${homeCode(plan, brief.origin)}) -> ${plan.destination.city} (${plan.destination.airport})  ·  ${fmtLong(start)} – ${fmtLong(end)}  ·  ${brief.pax} adult${brief.pax > 1 ? "s" : ""}`, M, PH - 84, 10, font, C.white);
   y = PH - band - 18;
 
   /* ---- summary box ---- */
