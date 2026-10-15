@@ -4,7 +4,16 @@ import { HttpError } from "./http.js";
  * Minimal Gemini REST client (no SDK). The key is read from the server
  * environment only and is sent in a header, never in the URL or to the browser.
  */
-const FALLBACK_MODELS = ["gemini-3.8-flash", "gemini-3.5-flash-lite", "gemini-3-flash-preview", "gemini-2.5-flash"];
+// Order matters on the free tier: the Flash Lite models allow ~500 requests/day,
+// the bigger Flash models only ~20/day. A model that is rate-limited (429),
+// overloaded (5xx) or not available (404) is skipped and the next one is tried.
+const FALLBACK_MODELS = [
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-flash-lite",
+  "gemini-3.8-flash",
+  "gemini-3.7-flash",
+  "gemini-3-flash-preview",
+];
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models";
 
 export function geminiKey(): string | undefined {
@@ -74,6 +83,7 @@ export async function generateJson(prompt: string, opts: { maxOutputTokens?: num
   const attemptCap = Number(process.env.GEMINI_ATTEMPT_MS) || 90_000;
   let timedOut = false;
   let lastError = "";
+  let rateLimited = 0;
 
   for (const model of modelCandidates()) {
     // Ask for minimal "thinking" so answers come back fast. If a model rejects the
@@ -116,7 +126,11 @@ export async function generateJson(prompt: string, opts: { maxOutputTokens?: num
       if (!res.ok) {
         const detail = await res.text().catch(() => "");
         if (res.status === 400 && thinking && /thinking/i.test(detail)) continue; // retry without thinkingConfig
-        if (res.status === 429) throw new HttpError(429, "Gemini rate limit reached. Wait a minute and try again.");
+        if (res.status === 429) {
+          console.warn(`[gemini] ${model} rate-limited (429), trying the next model`);
+          rateLimited++;
+          break attempts;
+        }
         if (res.status === 400 && /api key/i.test(detail)) throw new HttpError(502, "Gemini rejected the API key. Check GEMINI_API_KEY.");
         if (res.status === 403) throw new HttpError(502, "This Gemini key isn't allowed to use the API. Check the key's project settings.");
         const reason = googleMessage(detail);
@@ -146,6 +160,9 @@ export async function generateJson(prompt: string, opts: { maxOutputTokens?: num
         throw new HttpError(502, cand?.finishReason === "MAX_TOKENS" ? "Gemini's answer was cut short. Try fewer days." : "Gemini's answer couldn't be read. Try again.");
       }
     }
+  }
+  if (rateLimited && !lastError) {
+    throw new HttpError(429, "Gemini's free-tier limit is used up on every model for now. Try again in a minute, or tomorrow for daily limits (or enable billing in Google AI Studio).");
   }
   if (lastError) throw new HttpError(502, `Gemini returned an error (${lastError.slice(0, 200)}).`);
   if (timedOut) throw tooSlow();
