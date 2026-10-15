@@ -9,7 +9,11 @@ async function post<T>(path: string, body: unknown, signal?: AbortSignal): Promi
     throw new Error("Couldn't reach the server. Is `npm run dev` running?");
   }
   const data = (await res.json().catch(() => ({}))) as { error?: string };
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  if (!res.ok) {
+    if (data.error) throw new Error(data.error);
+    if (res.status === 504) throw new Error("The server timed out waiting for Gemini. Try again, or choose fewer days.");
+    throw new Error(`Request failed (${res.status}). Try again.`);
+  }
   return data as T;
 }
 

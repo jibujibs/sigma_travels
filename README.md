@@ -46,6 +46,8 @@ vercel.json   SPA rewrite + 60 s timeout for the AI routes
 
 ## Notes
 
+- **Timeouts:** Vercel stops a function after `maxDuration` (60 s in `vercel.json`). The server asks Gemini for minimal "thinking" so it answers quickly, and gives up after 55 s with a readable message instead of a bare 504. If your Vercel plan allows longer functions, raise `maxDuration` and set `GEMINI_TIMEOUT_MS` a few seconds lower.
+
 - Flights, hotels and prices are Gemini's estimates from general knowledge, not live inventory. The app and the PDF both say so.
 - The PDF is generated in the browser. Text the standard PDF fonts can't show (₹, some non-Latin scripts) is converted: ₹ becomes "Rs".
 - Run `npm run typecheck` for a full TypeScript check. The Vercel build (`vite build`) doesn't type-check.
