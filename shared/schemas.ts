@@ -25,3 +25,40 @@ export const planRequestSchema = z.object({
     airport: z.string().trim().max(4).default(""),
   }),
 });
+
+/* ---------- saved trips & Sigma Copilot ---------- */
+
+export const guestIdSchema = z.string().uuid("Invalid guest id");
+
+export const saveTripSchema = z.object({
+  guestId: guestIdSchema,
+  brief: z.object({
+    idea: z.string().max(500).default(""),
+    origin: z.string().max(80),
+    start: isoDate,
+    days: z.coerce.number().int().min(3).max(10),
+    pax: z.coerce.number().int().min(1).max(6),
+    budget: z.enum(["Budget", "Mid-range", "Luxury"]),
+    interests: z.array(z.string().max(30)).max(12).default([]),
+  }),
+  plan: z.unknown(),
+  sel: z.object({
+    out: z.number().int().min(0).max(9),
+    ret: z.number().int().min(0).max(9),
+    hotel: z.number().int().min(0).max(9),
+    car: z.number().int().min(0).max(9),
+  }),
+  carOn: z.boolean(),
+  food: z.enum(["street", "mid", "fine"]),
+  total: z.number().min(0).max(1e9),
+});
+
+export const chatRequestSchema = z.object({
+  guestId: guestIdSchema,
+  threadId: z.string().uuid("Invalid thread id"),
+  message: z.string().trim().min(1, "Type a question").max(1000),
+  /** What the traveller sees right now (plan summary, recommendations), built by the browser. */
+  context: z.string().max(20_000).default(""),
+  /** Recent turns kept by the browser, oldest first. */
+  history: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().max(4000) })).max(12).default([]),
+});

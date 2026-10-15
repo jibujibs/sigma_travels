@@ -11,6 +11,9 @@ interface Props {
   onPdf: () => Promise<void>;
   onNewTrip: () => void;
   toast: (m: string) => void;
+  /** Present when saving is available (Supabase configured). */
+  onSave?: () => Promise<void>;
+  saved?: boolean;
 }
 
 function FlightCard({ f }: { f: Flight }) {
@@ -24,9 +27,15 @@ function FlightCard({ f }: { f: Flight }) {
   );
 }
 
-export function PlanView({ state, example, model, onChange, onPdf, onNewTrip, toast }: Props) {
+export function PlanView({ state, example, model, onChange, onPdf, onNewTrip, toast, onSave, saved }: Props) {
   const [day, setDay] = useState(0);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [saving, setSaving] = useState(false);
+  async function save() {
+    if (!onSave) return;
+    setSaving(true);
+    try { await onSave(); } finally { setSaving(false); }
+  }
   const { plan, brief, sel } = state;
   const days = buildDays(state);
   const q = price(state);
@@ -190,6 +199,7 @@ export function PlanView({ state, example, model, onChange, onPdf, onNewTrip, to
           <p className="fine">{pp}</p>
           <div className="actions">
             <button className="btn solid pdf" onClick={pdf} disabled={pdfBusy}>{pdfBusy ? "Creating PDF…" : "Save as PDF"}</button>
+            {onSave && <button className="btn" onClick={save} disabled={saving || saved}>{saved ? "Saved ✓" : saving ? "Saving…" : "Save trip"}</button>}
             <button className="btn" onClick={copyText}>Copy text</button>
             <button className="btn" onClick={onNewTrip}>Plan another trip</button>
           </div>

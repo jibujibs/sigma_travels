@@ -1,12 +1,16 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Recommendation, TripBrief } from "../shared/types";
+import { CopilotDrawer } from "./components/CopilotDrawer";
 import { IdeaForm } from "./components/IdeaForm";
+import { MyTrips } from "./components/MyTrips";
 import { PlanView } from "./components/PlanView";
 import { Recommendations } from "./components/Recommendations";
-import { api } from "./lib/api";
+import { api, ApiError, type TripSummary } from "./lib/api";
+import { copilotContext } from "./lib/context";
+import { getGuestId } from "./lib/guest";
 import { addDays, iso, todayUTC } from "./lib/format";
 import { downloadTripPdf } from "./lib/pdf";
-import { bestReturn, type PlanState } from "./lib/trip";
+import { bestReturn, price, type PlanState } from "./lib/trip";
 
 const STORE = "sigma-ai-planner-v1";
 
@@ -50,6 +54,26 @@ export default function App() {
   const [, setTick] = useState(0);
   const ctl = useRef<AbortController | null>(null);
   const toastTimer = useRef<number>(undefined);
+  const [guestId] = useState(getGuestId);
+  // Saved trips (Supabase). null = not checked yet, false = Supabase not configured/reachable.
+  const [tripsOn, setTripsOn] = useState<boolean | null>(null);
+  const [trips, setTrips] = useState<TripSummary[]>([]);
+  const [showTrips, setShowTrips] = useState(false);
+  const [tripBusy, setTripBusy] = useState<string | null>(null);
+  const [savedFor, setSavedFor] = useState<PlanState | null>(null);
+
+  const refreshTrips = useCallback(async () => {
+    try {
+      const r = await api.trips.list(guestId);
+      setTrips(r.trips);
+      setTripsOn(true);
+    } catch (e) {
+      setTripsOn(false);
+      if (!(e instanceof ApiError && e.status === 503)) console.warn("My trips unavailable:", (e as Error).message);
+    }
+  }, [guestId]);
+
+  useEffect(() => { void refreshTrips(); }, [refreshTrips]);
 
   useEffect(() => {
     const prefs: Prefs = { origin: brief.origin, start: brief.start, days: brief.days, pax: brief.pax, budget: brief.budget };
@@ -106,14 +130,65 @@ export default function App() {
     setTimeout(() => document.getElementById("plan")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   }
 
+  async function saveTrip() {
+    if (!planState) return;
+    try {
+      await api.trips.save(guestId, planState, price(planState).total);
+      setSavedFor(planState);
+      toast("Saved to My trips");
+      void refreshTrips();
+    } catch (e) {
+      toast(e instanceof ApiError && e.status === 503 ? "Saving isn't set up yet (Supabase keys missing)" : `Couldn't save: ${(e as Error).message}`);
+    }
+  }
+
+  async function openTrip(id: string) {
+    setTripBusy(id);
+    try {
+      const { trip } = await api.trips.get(guestId, id);
+      const st: PlanState = { brief: trip.criteria, plan: trip.segments.plan, sel: trip.segments.sel, carOn: trip.segments.carOn, food: trip.segments.food };
+      setRecs(null);
+      setPlanState(st);
+      setSavedFor(st);
+      setModel(undefined);
+      setShowTrips(false);
+      setTimeout(() => document.getElementById("plan")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+    } catch (e) {
+      toast(`Couldn't open the trip: ${(e as Error).message}`);
+    } finally {
+      setTripBusy(null);
+    }
+  }
+
+  async function deleteTrip(id: string) {
+    if (!window.confirm("Delete this saved trip?")) return;
+    setTripBusy(id);
+    try {
+      await api.trips.remove(guestId, id);
+      setTrips((t) => t.filter((x) => x.id !== id));
+      toast("Trip deleted");
+    } catch (e) {
+      toast(`Couldn't delete: ${(e as Error).message}`);
+    } finally {
+      setTripBusy(null);
+    }
+  }
+
+  const getContext = useCallback(() => copilotContext(brief, recs, planState), [brief, recs, planState]);
+
   const secs = busy ? Math.round((Date.now() - busy.startedAt) / 1000) : 0;
 
   return (
     <div className="wrap">
       <div className="top">
         <div className="brand"><span className="logo">Σ</span>Sigma Travels · Trip Planner</div>
-        <span className="demo">AI estimates · no real booking</span>
+        <div className="top-actions">
+          {tripsOn && <button className="btn" onClick={() => setShowTrips((v) => !v)} aria-expanded={showTrips}>My trips{trips.length ? ` (${trips.length})` : ""}</button>}
+          <span className="demo">AI estimates · no real booking</span>
+        </div>
       </div>
+
+      {showTrips && tripsOn && <MyTrips trips={trips} busyId={tripBusy} onOpen={openTrip} onDelete={deleteTrip} onClose={() => setShowTrips(false)} />}
 
       <IdeaForm brief={brief} onChange={setBrief} onSubmit={recommend} busy={!!busy} error={formError} />
 
@@ -141,7 +216,11 @@ export default function App() {
         onPdf={() => downloadTripPdf(planState)}
         onNewTrip={() => { window.scrollTo({ top: 0, behavior: "smooth" }); document.getElementById("idea")?.focus(); }}
         toast={toast}
+        onSave={tripsOn ? saveTrip : undefined}
+        saved={savedFor === planState}
       />}
+
+      <CopilotDrawer guestId={guestId} getContext={getContext} hasPlan={!!planState} raised={!!planState} />
 
       {toastMsg && <div className="toast" role="status">{toastMsg}</div>}
     </div>

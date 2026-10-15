@@ -1,17 +1,20 @@
 import { geminiKey, modelCandidates, thinkingFor } from "../server/gemini.js";
 import { json } from "../server/http.js";
+import { checkTables, isSupabaseConfigured } from "../server/supabase.js";
 
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta";
 
 /**
  * GET /api/health            → is the server configured? (never returns the key)
- * GET /api/health?check=1    → also lists the Gemini models this key can use and
- *                              times a tiny test call to each model the app tries.
+ * GET /api/health?check=1    → also checks the Supabase tables, lists the Gemini models
+ *                              this key can use and times a tiny test call to each model.
  */
 export async function GET(request: Request): Promise<Response> {
   const key = geminiKey();
-  const base = { ok: true, gemini: Boolean(key), models: modelCandidates() };
-  if (!key || new URL(request.url).searchParams.get("check") !== "1") return json(base);
+  const base = { ok: true, gemini: Boolean(key), supabase: isSupabaseConfigured(), models: modelCandidates() };
+  if (new URL(request.url).searchParams.get("check") !== "1") return json(base);
+  const tables = base.supabase ? await checkTables() : undefined;
+  if (!key) return json({ ...base, ...(tables ? { tables } : {}) });
 
   const headers = { "content-type": "application/json", "x-goog-api-key": key };
   let available: string[] = [];
@@ -46,5 +49,5 @@ export async function GET(request: Request): Promise<Response> {
     }
   }));
 
-  return json({ ...base, available, ...(listError ? { listError } : {}), ping });
+  return json({ ...base, ...(tables ? { tables } : {}), available, ...(listError ? { listError } : {}), ping });
 }

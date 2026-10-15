@@ -18,6 +18,12 @@
     },
     "api/diag.ts": {
       "maxDuration": 60
+    },
+    "api/chat.ts": {
+      "maxDuration": 300
+    },
+    "api/trips.ts": {
+      "maxDuration": 30
     }
   }
 }
