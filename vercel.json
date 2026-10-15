@@ -1,8 +1,20 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "rewrites": [{ "source": "/((?!api/).*)", "destination": "/index.html" }],
+  "rewrites": [
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ],
   "functions": {
-    "api/recommend.ts": { "maxDuration": 60 },
-    "api/plan.ts": { "maxDuration": 60 }
+    "api/recommend.ts": {
+      "maxDuration": 300
+    },
+    "api/plan.ts": {
+      "maxDuration": 300
+    },
+    "api/health.ts": {
+      "maxDuration": 60
+    }
   }
 }

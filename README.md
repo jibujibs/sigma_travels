@@ -46,7 +46,8 @@ vercel.json   SPA rewrite + 60 s timeout for the AI routes
 
 ## Notes
 
-- **Timeouts:** Vercel stops a function after `maxDuration` (60 s in `vercel.json`). The server asks Gemini for minimal "thinking" so it answers quickly, and gives up after 55 s with a readable message instead of a bare 504. If your Vercel plan allows longer functions, raise `maxDuration` and set `GEMINI_TIMEOUT_MS` a few seconds lower.
+- **Timeouts:** the AI routes may run for up to 300 s (`maxDuration` in `vercel.json`, which is the Hobby limit with Fluid compute). The server asks Gemini for minimal "thinking", moves on to the next model if one gives no answer within 90 s, and stops at 280 s with a readable message.
+- **Diagnostics:** open `/api/health?check=1` to see which Gemini models your key can use, plus the status and response time of a tiny test call to each model the app tries.
 
 - Flights, hotels and prices are Gemini's estimates from general knowledge, not live inventory. The app and the PDF both say so.
 - The PDF is generated in the browser. Text the standard PDF fonts can't show (₹, some non-Latin scripts) is converted: ₹ becomes "Rs".

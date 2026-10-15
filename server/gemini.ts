@@ -57,14 +57,17 @@ export async function generateJson(prompt: string, opts: { maxOutputTokens?: num
   const key = geminiKey();
   if (!key) throw new HttpError(503, "GEMINI_API_KEY is not set on the server. Add it to .env.local (local) or Vercel → Settings → Environment Variables.");
 
-  // Finish before Vercel's function limit (maxDuration 60 s in vercel.json) so the user
+  // Finish before Vercel's function limit (maxDuration 300 s in vercel.json) so the user
   // gets a readable error instead of a bare 504. Override with GEMINI_TIMEOUT_MS.
-  const deadline = Date.now() + (Number(process.env.GEMINI_TIMEOUT_MS) || 55_000);
+  const deadline = Date.now() + (Number(process.env.GEMINI_TIMEOUT_MS) || 280_000);
+  // A single model that hangs shouldn't eat the whole budget: give up on it and try the next.
+  const attemptCap = Number(process.env.GEMINI_ATTEMPT_MS) || 90_000;
+  let timedOut = false;
 
   for (const model of modelCandidates()) {
     // Ask for minimal "thinking" so answers come back fast. If a model rejects the
     // setting, retry the same model once without it.
-    for (const thinking of [thinkingFor(model), undefined]) {
+    attempts: for (const thinking of [thinkingFor(model), undefined]) {
       const remaining = deadline - Date.now();
       if (remaining < 3000) throw tooSlow();
       const started = Date.now();
@@ -73,7 +76,7 @@ export async function generateJson(prompt: string, opts: { maxOutputTokens?: num
         res = await fetch(`${ENDPOINT}/${encodeURIComponent(model)}:generateContent`, {
           method: "POST",
           headers: { "content-type": "application/json", "x-goog-api-key": key },
-          signal: AbortSignal.timeout(remaining),
+          signal: AbortSignal.timeout(Math.min(remaining, attemptCap)),
           body: JSON.stringify({
             contents: [{ role: "user", parts: [{ text: prompt }] }],
             generationConfig: {
@@ -86,11 +89,19 @@ export async function generateJson(prompt: string, opts: { maxOutputTokens?: num
         });
       } catch (err) {
         const name = (err as Error)?.name;
-        if (name === "TimeoutError" || name === "AbortError") throw tooSlow();
+        if (name === "TimeoutError" || name === "AbortError") {
+          console.warn(`[gemini] ${model} gave no answer after ${Date.now() - started} ms`);
+          if (deadline - Date.now() < 3000) throw tooSlow();
+          timedOut = true;
+          break attempts; // try the next model
+        }
         throw new HttpError(502, "Couldn't reach Gemini. Check the server's internet connection.");
       }
 
-      if (res.status === 404) break; // model not available for this key: try the next model
+      if (res.status === 404) {
+        console.warn(`[gemini] ${model} not available for this key (404)`);
+        break; // try the next model
+      }
       if (!res.ok) {
         const detail = await res.text().catch(() => "");
         if (res.status === 400 && thinking && /thinking/i.test(detail)) continue; // retry without thinkingConfig
@@ -119,5 +130,6 @@ export async function generateJson(prompt: string, opts: { maxOutputTokens?: num
       }
     }
   }
+  if (timedOut) throw tooSlow();
   throw new HttpError(502, "None of the Gemini models are available for this key. Set GEMINI_MODEL to a model your key can use.");
 }

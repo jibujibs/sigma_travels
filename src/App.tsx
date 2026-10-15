@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { EXAMPLE_BRIEF, EXAMPLE_PLAN } from "../shared/example";
 import type { Recommendation, TripBrief } from "../shared/types";
 import { IdeaForm } from "./components/IdeaForm";
 import { PlanView } from "./components/PlanView";
@@ -11,20 +10,23 @@ import type { PlanState } from "./lib/trip";
 
 const STORE = "sigma-ai-planner-v1";
 
+const defaultBrief = (): TripBrief => ({
+  idea: "", origin: "Kochi (COK)", start: iso(addDays(todayUTC(), 30)), days: 7, pax: 2, budget: "Mid-range", interests: [],
+});
+
 interface Saved { brief: TripBrief; recs: Recommendation[] | null; planState: PlanState | null; example: boolean; model?: string }
 
 function load(): Saved {
-  const fallback: Saved = {
-    brief: { ...EXAMPLE_BRIEF, start: EXAMPLE_BRIEF.start < iso(todayUTC()) ? iso(addDays(todayUTC(), 30)) : EXAMPLE_BRIEF.start },
-    recs: null,
-    planState: { brief: EXAMPLE_BRIEF, plan: EXAMPLE_PLAN, sel: { out: 1, ret: 1, hotel: 0, car: 0 }, carOn: true, food: "mid" },
-    example: true,
-  };
+  const fresh: Saved = { brief: defaultBrief(), recs: null, planState: null, example: false };
   try {
     const v = JSON.parse(localStorage.getItem(STORE) ?? "null") as Saved | null;
-    return v?.brief && (v.planState === null || v.planState?.plan) ? v : fallback;
+    if (!v?.brief) return fresh;
+    const brief = v.brief.start < iso(todayUTC()) ? { ...v.brief, start: defaultBrief().start } : v.brief;
+    // Older versions saved a built-in Kochi–Delhi example; never bring that back.
+    const planState = v.example || !v.planState?.plan ? null : v.planState;
+    return { brief, recs: v.recs ?? null, planState, example: false, model: v.model };
   } catch {
-    return fallback;
+    return fresh;
   }
 }
 
@@ -35,7 +37,6 @@ export default function App() {
   const [brief, setBrief] = useState<TripBrief>(initial.brief);
   const [recs, setRecs] = useState<Recommendation[] | null>(initial.recs);
   const [planState, setPlanState] = useState<PlanState | null>(initial.planState);
-  const [example, setExample] = useState(initial.example);
   const [model, setModel] = useState<string | undefined>(initial.model);
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
@@ -46,8 +47,8 @@ export default function App() {
   const toastTimer = useRef<number>(undefined);
 
   useEffect(() => {
-    try { localStorage.setItem(STORE, JSON.stringify({ brief, recs, planState, example, model })); } catch { /* storage full or blocked */ }
-  }, [brief, recs, planState, example, model]);
+    try { localStorage.setItem(STORE, JSON.stringify({ brief, recs, planState, example: false, model })); } catch { /* storage full or blocked */ }
+  }, [brief, recs, planState, model]);
 
   useEffect(() => {
     if (!busy) return;
@@ -86,7 +87,6 @@ export default function App() {
     // until the traveller picks one of the new destinations.
     setRecs(r.destinations);
     setPlanState(null);
-    setExample(false);
     setModel(r.model);
     setTimeout(() => document.getElementById("recs")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   }
@@ -95,7 +95,6 @@ export default function App() {
     const r = await run(`Planning ${rec.city}: flights, hotel, car and ${brief.days} days`, (s) => api.plan(brief, rec, s));
     if (!r) return;
     setPlanState({ brief: { ...brief }, plan: r.plan, sel: { out: 0, ret: 0, hotel: 0, car: 0 }, carOn: r.plan.car_days > 0, food: "mid" });
-    setExample(false);
     setModel(r.model);
     toast(`${rec.city} plan ready`);
     setTimeout(() => document.getElementById("plan")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
@@ -125,12 +124,12 @@ export default function App() {
         </div>
       )}
 
-      {recs && <div id="recs"><Recommendations recs={recs} planned={example ? undefined : planState?.plan.destination.city} pax={brief.pax} busy={!!busy} onPlan={plan} /></div>}
+      {recs && <div id="recs"><Recommendations recs={recs} planned={planState?.plan.destination.city} pax={brief.pax} busy={!!busy} onPlan={plan} /></div>}
 
       {planState && <PlanView
         key={`${planState.plan.destination.city}-${planState.brief.start}-${planState.plan.days.length}`}
         state={planState}
-        example={example}
+        example={false}
         model={model}
         onChange={setPlanState}
         onPdf={() => downloadTripPdf(planState)}
