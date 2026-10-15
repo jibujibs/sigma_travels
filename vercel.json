@@ -15,6 +15,9 @@
     },
     "api/health.ts": {
       "maxDuration": 60
+    },
+    "api/diag.ts": {
+      "maxDuration": 60
     }
   }
 }

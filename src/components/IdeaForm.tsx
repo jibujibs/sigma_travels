@@ -24,9 +24,9 @@ export function IdeaForm({ brief, onChange, onSubmit, busy, error }: Props) {
         <p>Describe a trip idea or name a place. Gemini suggests three destinations, then builds the full plan with flights, a hotel and a rental car.</p>
       </div>
       <div>
-        <label className="lbl" htmlFor="idea">Your travel idea</label>
+        <label className="lbl" htmlFor="idea">Where to? · destination or travel idea</label>
         <textarea id="idea" className={error ? "invalid" : ""} value={brief.idea} maxLength={500}
-          placeholder="e.g. Snowy mountains and cosy villages in Europe, or simply: Eiffel Tower"
+          placeholder="e.g. London, or: snowy mountains and cosy villages in Europe"
           onChange={(e) => set("idea", e.target.value)} />
         {error && <p className="err-text">{error}</p>}
       </div>
@@ -43,8 +43,8 @@ export function IdeaForm({ brief, onChange, onSubmit, busy, error }: Props) {
         </div>
       </div>
       <div className="form-row">
-        <div className="field"><label className="lbl" htmlFor="origin">Flying from</label>
-          <input id="origin" type="text" value={brief.origin} onChange={(e) => set("origin", e.target.value)} /></div>
+        <div className="field"><label className="lbl" htmlFor="origin">From · your city</label>
+          <input id="origin" type="text" placeholder="e.g. Kochi (COK)" value={brief.origin} onChange={(e) => set("origin", e.target.value)} /></div>
         <div className="field"><label className="lbl" htmlFor="start">Start date</label>
           <input id="start" type="date" min={iso(todayUTC())} value={brief.start} onChange={(e) => e.target.value && set("start", e.target.value)} /></div>
         <div className="field"><label className="lbl" htmlFor="days">Days</label>

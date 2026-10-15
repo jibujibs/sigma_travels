@@ -43,6 +43,16 @@ export function parseLooseJson(text: string): unknown {
   throw new Error("No JSON in model reply");
 }
 
+/** Google's error body is JSON like {"error":{"message":"..."}}; it never contains the key. */
+function googleMessage(detail: string): string {
+  try {
+    const m = (JSON.parse(detail) as { error?: { message?: string; status?: string } }).error;
+    return (m?.message || m?.status || detail).replace(/\s+/g, " ").trim();
+  } catch {
+    return detail.replace(/\s+/g, " ").trim().slice(0, 300) || "no details";
+  }
+}
+
 const tooSlow = () => new HttpError(504, "Gemini took too long to answer. Try again, or choose fewer days.");
 
 /** Lowest thinking setting each model family accepts (Gemini 2.5 uses a token budget, 3.x a level). */
@@ -63,6 +73,7 @@ export async function generateJson(prompt: string, opts: { maxOutputTokens?: num
   // A single model that hangs shouldn't eat the whole budget: give up on it and try the next.
   const attemptCap = Number(process.env.GEMINI_ATTEMPT_MS) || 90_000;
   let timedOut = false;
+  let lastError = "";
 
   for (const model of modelCandidates()) {
     // Ask for minimal "thinking" so answers come back fast. If a model rejects the
@@ -108,8 +119,14 @@ export async function generateJson(prompt: string, opts: { maxOutputTokens?: num
         if (res.status === 429) throw new HttpError(429, "Gemini rate limit reached. Wait a minute and try again.");
         if (res.status === 400 && /api key/i.test(detail)) throw new HttpError(502, "Gemini rejected the API key. Check GEMINI_API_KEY.");
         if (res.status === 403) throw new HttpError(502, "This Gemini key isn't allowed to use the API. Check the key's project settings.");
-        console.error(`[gemini] ${model} ${res.status}`, detail.slice(0, 500));
-        throw new HttpError(502, "Gemini returned an error. Try again.");
+        const reason = googleMessage(detail);
+        console.error(`[gemini] ${model} ${res.status} ${reason}`);
+        // Overloaded model, or one this key/API version can't use: try the next model.
+        if (res.status >= 500 || (res.status === 400 && /model|not found|not supported|unsupported|thinking/i.test(reason))) {
+          lastError = `${model} → ${res.status} ${reason}`;
+          break attempts;
+        }
+        throw new HttpError(502, `Gemini returned an error (${res.status}: ${reason.slice(0, 180)}).`);
       }
 
       let body: GeminiResponse;
@@ -130,6 +147,7 @@ export async function generateJson(prompt: string, opts: { maxOutputTokens?: num
       }
     }
   }
+  if (lastError) throw new HttpError(502, `Gemini returned an error (${lastError.slice(0, 200)}).`);
   if (timedOut) throw tooSlow();
   throw new HttpError(502, "None of the Gemini models are available for this key. Set GEMINI_MODEL to a model your key can use.");
 }

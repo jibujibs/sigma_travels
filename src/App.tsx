@@ -21,7 +21,14 @@ function load(): Saved {
   try {
     const v = JSON.parse(localStorage.getItem(STORE) ?? "null") as Saved | null;
     if (!v?.brief) return fresh;
-    const brief = v.brief.start < iso(todayUTC()) ? { ...v.brief, start: defaultBrief().start } : v.brief;
+    // A page refresh starts a fresh search: clear the idea and interests, keep the
+    // traveller's preferences (home city, days, adults, budget, future start date).
+    const brief: TripBrief = {
+      ...v.brief,
+      idea: "",
+      interests: [],
+      start: v.brief.start < iso(todayUTC()) ? defaultBrief().start : v.brief.start,
+    };
     // Older versions saved a built-in Kochi–Delhi example; never bring that back.
     const planState = v.example || !v.planState?.plan ? null : v.planState;
     return { brief, recs: v.recs ?? null, planState, example: false, model: v.model };
