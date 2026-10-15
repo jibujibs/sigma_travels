@@ -11,7 +11,7 @@ import type { PlanState } from "./lib/trip";
 
 const STORE = "sigma-ai-planner-v1";
 
-interface Saved { brief: TripBrief; recs: Recommendation[] | null; planState: PlanState; example: boolean; model?: string }
+interface Saved { brief: TripBrief; recs: Recommendation[] | null; planState: PlanState | null; example: boolean; model?: string }
 
 function load(): Saved {
   const fallback: Saved = {
@@ -22,7 +22,7 @@ function load(): Saved {
   };
   try {
     const v = JSON.parse(localStorage.getItem(STORE) ?? "null") as Saved | null;
-    return v?.planState?.plan && v.brief ? v : fallback;
+    return v?.brief && (v.planState === null || v.planState?.plan) ? v : fallback;
   } catch {
     return fallback;
   }
@@ -34,7 +34,7 @@ export default function App() {
   const initial = useRef(load()).current;
   const [brief, setBrief] = useState<TripBrief>(initial.brief);
   const [recs, setRecs] = useState<Recommendation[] | null>(initial.recs);
-  const [planState, setPlanState] = useState<PlanState>(initial.planState);
+  const [planState, setPlanState] = useState<PlanState | null>(initial.planState);
   const [example, setExample] = useState(initial.example);
   const [model, setModel] = useState<string | undefined>(initial.model);
   const [busy, setBusy] = useState<Busy>(null);
@@ -82,7 +82,11 @@ export default function App() {
     setFormError(undefined);
     const r = await run("Finding destinations that fit", (s) => api.recommend(brief, s));
     if (!r) return;
+    // New recommendations replace the old ones and clear the previous destination's plan
+    // until the traveller picks one of the new destinations.
     setRecs(r.destinations);
+    setPlanState(null);
+    setExample(false);
     setModel(r.model);
     setTimeout(() => document.getElementById("recs")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   }
@@ -121,9 +125,10 @@ export default function App() {
         </div>
       )}
 
-      {recs && <div id="recs"><Recommendations recs={recs} pax={brief.pax} busy={!!busy} onPlan={plan} /></div>}
+      {recs && <div id="recs"><Recommendations recs={recs} planned={example ? undefined : planState?.plan.destination.city} pax={brief.pax} busy={!!busy} onPlan={plan} /></div>}
 
-      <PlanView
+      {planState && <PlanView
+        key={`${planState.plan.destination.city}-${planState.brief.start}-${planState.plan.days.length}`}
         state={planState}
         example={example}
         model={model}
@@ -131,7 +136,7 @@ export default function App() {
         onPdf={() => downloadTripPdf(planState)}
         onNewTrip={() => { window.scrollTo({ top: 0, behavior: "smooth" }); document.getElementById("idea")?.focus(); }}
         toast={toast}
-      />
+      />}
 
       {toastMsg && <div className="toast" role="status">{toastMsg}</div>}
     </div>

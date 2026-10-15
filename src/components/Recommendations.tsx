@@ -3,15 +3,16 @@ import { inr } from "../lib/format";
 
 interface Props {
   recs: Recommendation[];
+  planned?: string;
   pax: number;
   busy: boolean;
   onPlan: (r: Recommendation) => void;
 }
 
-export function Recommendations({ recs, pax, busy, onPlan }: Props) {
+export function Recommendations({ recs, planned, pax, busy, onPlan }: Props) {
   return (
     <section aria-labelledby="h-recs">
-      <div className="sec-head"><h2 id="h-recs">Recommended for you</h2><p>Pick one to build the full plan</p></div>
+      <div className="sec-head"><h2 id="h-recs">Recommended for you</h2><p>{planned ? `Showing the ${planned} plan below` : "Pick one to build the full plan"}</p></div>
       <div className="recs">
         {recs.map((r, i) => (
           <article key={r.city + i} className={"rec" + (i === 0 ? " first" : "")}>
@@ -29,7 +30,7 @@ export function Recommendations({ recs, pax, busy, onPlan }: Props) {
               {r.visa && <div><span>Visa</span><span>{r.visa}</span></div>}
               {r.est_total_inr > 0 && <div><span>Est. total</span><span className="est">{inr(r.est_total_inr)} for {pax}</span></div>}
             </div>
-            <button className="btn solid" disabled={busy} onClick={() => onPlan(r)}>Plan this trip</button>
+            <button className={planned === r.city ? "btn" : "btn solid"} disabled={busy} onClick={() => onPlan(r)}>{planned === r.city ? "Rebuild this plan" : "Plan this trip"}</button>
           </article>
         ))}
       </div>
