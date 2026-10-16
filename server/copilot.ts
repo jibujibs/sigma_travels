@@ -29,7 +29,7 @@ Reply with only JSON: {"reply":"your answer"}`;
 /** Asks Gemini; if Gemini is unavailable (limits, outage) returns a short local fallback instead of failing. */
 export async function askCopilot(context: string, history: Turn[], message: string): Promise<{ reply: string; model: string }> {
   try {
-    const { data, model } = await generateJson(copilotPrompt(context, history, message), { maxOutputTokens: 2048, temperature: 0.5 });
+    const { data, model } = await generateJson(copilotPrompt(context, history, message), { maxOutputTokens: 2048, temperature: 0.5, label: "copilot" });
     const reply = typeof (data as { reply?: unknown })?.reply === "string" ? (data as { reply: string }).reply.trim() : "";
     if (reply) return { reply, model };
     throw new HttpError(502, "empty reply");

@@ -6,7 +6,7 @@ import { planRequestSchema } from "../shared/schemas.js";
 
 export const POST = handle(async (request) => {
   const { brief, destination } = await parseBody(request, planRequestSchema);
-  const { data, model } = await generateJson(planPrompt(brief, destination), { maxOutputTokens: 24576, temperature: 0.6 });
+  const { data, model } = await generateJson(planPrompt(brief, destination), { maxOutputTokens: 24576, temperature: 0.6, label: "plan" });
   try {
     return json({ plan: normalizePlan(data, brief.days), model });
   } catch (err) {

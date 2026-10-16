@@ -25,9 +25,26 @@ export function modelCandidates(): string[] {
   return [...new Set([pinned, ...FALLBACK_MODELS].filter((m): m is string => Boolean(m)))];
 }
 
+interface UsageMetadata {
+  promptTokenCount?: number;
+  candidatesTokenCount?: number;
+  thoughtsTokenCount?: number;
+  totalTokenCount?: number;
+}
+
 interface GeminiResponse {
   candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] }; finishReason?: string }[];
   promptFeedback?: { blockReason?: string };
+  usageMetadata?: UsageMetadata;
+}
+
+/** One log line per answered request with Gemini's own token counts (numbers only, never prompt text or keys). */
+function logUsage(label: string, model: string, ms: number, u: UsageMetadata | undefined): void {
+  const n = (v: number | undefined) => (v ?? 0).toLocaleString("en-US");
+  console.log(
+    `[gemini] ${label} · ${model} · input ${n(u?.promptTokenCount)} · output ${n(u?.candidatesTokenCount)}` +
+      ` · thinking ${n(u?.thoughtsTokenCount)} · total ${n(u?.totalTokenCount)} · ${ms} ms`,
+  );
 }
 
 /** Parses JSON even if the model wrapped it in a code fence or added a stray sentence. */
@@ -72,7 +89,10 @@ export function thinkingFor(model: string): Record<string, unknown> | undefined 
   return undefined;
 }
 
-export async function generateJson(prompt: string, opts: { maxOutputTokens?: number; temperature?: number } = {}): Promise<{ data: unknown; model: string }> {
+export async function generateJson(
+  prompt: string,
+  opts: { maxOutputTokens?: number; temperature?: number; label?: string } = {},
+): Promise<{ data: unknown; model: string }> {
   const key = geminiKey();
   if (!key) throw new HttpError(503, "GEMINI_API_KEY is not set on the server. Add it to .env.local (local) or Vercel → Settings → Environment Variables.");
 
@@ -149,7 +169,7 @@ export async function generateJson(prompt: string, opts: { maxOutputTokens?: num
       } catch {
         throw tooSlow();
       }
-      console.log(`[gemini] ${model} answered in ${Date.now() - started} ms`);
+      logUsage(opts.label ?? "request", model, Date.now() - started, body.usageMetadata);
       if (body.promptFeedback?.blockReason) throw new HttpError(422, "Gemini declined this request. Try rewording your idea.");
       const cand = body.candidates?.[0];
       const text = (cand?.content?.parts ?? []).filter((p) => !p.thought).map((p) => p.text ?? "").join("");

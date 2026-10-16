@@ -6,7 +6,7 @@ import { recommendRequestSchema } from "../shared/schemas.js";
 
 export const POST = handle(async (request) => {
   const { brief } = await parseBody(request, recommendRequestSchema);
-  const { data, model } = await generateJson(recommendPrompt(brief), { maxOutputTokens: 8192 });
+  const { data, model } = await generateJson(recommendPrompt(brief), { maxOutputTokens: 8192, label: "recommend" });
   const destinations = normalizeRecommendations(data);
   if (!destinations.length) throw new HttpError(502, "Gemini didn't suggest any destinations. Try again.");
   return json({ destinations, model });
