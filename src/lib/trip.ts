@@ -1,4 +1,4 @@
-import type { Stop, TripBrief, TripPlan } from "../../shared/types";
+import { needsOf, type Needs, type Stop, type TripBrief, type TripPlan } from "../../shared/types";
 import { addDays, inr, originCode, parseISO } from "./format";
 
 export type FoodStyle = "street" | "mid" | "fine";
@@ -10,6 +10,17 @@ const FOOD_X: Record<FoodStyle, number> = { street: 0.6, mid: 1, fine: 2.2 };
 
 export interface BuiltStop extends Stop { isClosed: boolean }
 export interface BuiltDay { title: string; date: Date; stops: BuiltStop[]; warn: number }
+
+/** What this plan contains (old saved trips have everything). */
+export const planNeeds = (s: PlanState): Needs => needsOf(s.plan);
+
+/** Trip length in days: the day-by-day plan when there is one, else the days chosen on the form. */
+export function tripLength(s: PlanState): number {
+  return planNeeds(s).itinerary && s.plan.days.length ? s.plan.days.length : Math.max(1, s.brief.days);
+}
+
+export const NEED_LABEL: Record<keyof Needs, string> = { flights: "Flights", hotel: "Hotel", car: "Rental car", itinerary: "Day-by-day plan" };
+export const needsList = (n: Needs) => (Object.keys(NEED_LABEL) as (keyof Needs)[]).filter((k) => n[k]).map((k) => NEED_LABEL[k]);
 
 const mins = (t: string) => { const m = /^(\d{2}):(\d{2})$/.exec(t); return m ? +m[1] * 60 + +m[2] : -1; };
 
@@ -44,6 +55,7 @@ export function picks(s: PlanState) {
 /** Plan days + the chosen flights, with {hotel}/{car} tokens swapped for the chosen options. */
 export function buildDays(s: PlanState): BuiltDay[] {
   const { plan, brief } = s;
+  if (!planNeeds(s).itinerary) return [];
   const { out, ret, hotel, car } = picks(s);
   const useCar = s.carOn && !!car;
   const start = parseISO(brief.start);
@@ -73,15 +85,18 @@ export interface QuoteLine { label: string; value: number; why: string }
 export function price(s: PlanState) {
   const { plan, brief } = s;
   const { out, ret, hotel, car } = picks(s);
-  const pax = brief.pax, rooms = Math.ceil(pax / 2), nights = Math.max(1, plan.days.length - 1);
+  const n = planNeeds(s), len = tripLength(s);
+  const pax = brief.pax, rooms = Math.ceil(pax / 2), nights = Math.max(1, len - 1);
   const lines: QuoteLine[] = [];
-  lines.push({ label: "Flights", value: (out.fare_inr + ret.fare_inr) * pax, why: `${inr(out.fare_inr)} + ${inr(ret.fare_inr)} × ${pax} adult${pax > 1 ? "s" : ""}` });
+  if (n.flights && out && ret) lines.push({ label: "Flights", value: (out.fare_inr + ret.fare_inr) * pax, why: `${inr(out.fare_inr)} + ${inr(ret.fare_inr)} × ${pax} adult${pax > 1 ? "s" : ""}` });
   const tax = plan.hotel_tax_pct / 100;
-  lines.push({ label: "Hotel", value: hotel.rate_inr * rooms * nights * (1 + tax), why: `${inr(hotel.rate_inr)} × ${rooms} room${rooms > 1 ? "s" : ""} × ${nights} nights${tax ? ` + ${plan.hotel_tax_pct}% tax` : ""}` });
-  if (s.carOn && car && plan.car_days > 0) lines.push({ label: "Rental car", value: car.daily_inr * plan.car_days, why: `${inr(car.daily_inr)} × ${plan.car_days} day${plan.car_days > 1 ? "s" : ""} · ${car.mode}` });
-  const food = plan.food_per_person_day_inr * FOOD_X[s.food];
-  lines.push({ label: "Food", value: food * plan.days.length * pax, why: `${inr(food)} per person per day` });
-  if (plan.activities_per_person_inr) lines.push({ label: "Sights and activities", value: plan.activities_per_person_inr * pax, why: `${inr(plan.activities_per_person_inr)} per person` });
+  if (n.hotel && hotel) lines.push({ label: "Hotel", value: hotel.rate_inr * rooms * nights * (1 + tax), why: `${inr(hotel.rate_inr)} × ${rooms} room${rooms > 1 ? "s" : ""} × ${nights} night${nights > 1 ? "s" : ""}${tax ? ` + ${plan.hotel_tax_pct}% tax` : ""}` });
+  if (n.car && s.carOn && car && plan.car_days > 0) lines.push({ label: "Rental car", value: car.daily_inr * plan.car_days, why: `${inr(car.daily_inr)} × ${plan.car_days} day${plan.car_days > 1 ? "s" : ""} · ${car.mode}` });
+  if (n.itinerary) {
+    const food = plan.food_per_person_day_inr * FOOD_X[s.food];
+    lines.push({ label: "Food", value: food * len * pax, why: `${inr(food)} per person per day` });
+    if (plan.activities_per_person_inr) lines.push({ label: "Sights and activities", value: plan.activities_per_person_inr * pax, why: `${inr(plan.activities_per_person_inr)} per person` });
+  }
   const total = lines.reduce((a, l) => a + l.value, 0);
-  return { lines, total, perPerson: total / pax, rooms, nights, car, carTooSmall: s.carOn && !!car && pax > car.seats };
+  return { lines, total, perPerson: total / pax, rooms, nights, car, carTooSmall: n.car && s.carOn && !!car && pax > car.seats };
 }

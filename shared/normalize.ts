@@ -1,4 +1,4 @@
-import type { Car, Flight, Hotel, PlanDay, Recommendation, Stop, TripPlan } from "./types.js";
+import { needsOf, type Car, type Flight, type Hotel, type Intent, type Needs, type PlanDay, type Recommendation, type Stop, type TripPlan } from "./types.js";
 
 /* The model's JSON is untrusted: coerce every field into the shape the UI expects. */
 
@@ -50,8 +50,22 @@ function flights(v: unknown): Flight[] {
   });
 }
 
-export function normalizePlan(raw: unknown, days: number): TripPlan {
+/** Gemini's reading of the free text. Anything unclear falls back to "no destination, nothing specific". */
+export function normalizeIntent(raw: unknown): Intent {
+  const r = obj(raw);
+  const d = obj(r.destination);
+  const city = str(d.city);
+  const destination = city ? { city, country: str(d.country), airport: str(d.airport).replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase() } : null;
+  const n = obj(r.needs);
+  const needs: Needs = { flights: n.flights === true, hotel: n.hotel === true, car: n.car === true, itinerary: n.itinerary === true };
+  const any = needs.flights || needs.hotel || needs.car || needs.itinerary;
+  return { destination, needs: r.specific === true && any ? needs : null };
+}
+
+/** needs: what was asked for. When omitted (re-saving an existing plan) it is read from the plan itself. */
+export function normalizePlan(raw: unknown, days: number, needsIn?: Needs): TripPlan {
   const p = obj(raw);
+  const needs = needsIn ?? needsOf(p as { needs?: Partial<Needs> });
   const d = obj(p.destination);
   const fl = obj(p.flights);
   const hotels: Hotel[] = arr(p.hotels).slice(0, 5).map((x) => {
@@ -78,23 +92,25 @@ export function normalizePlan(raw: unknown, days: number): TripPlan {
     return { title: str(day.title, "Explore"), stops };
   });
   const plan: TripPlan = {
+    needs,
     destination: { city: str(d.city, "Destination"), country: str(d.country), airport: code(d.airport), currency: str(d.currency), summary: str(d.summary) },
-    flights: { outbound: flights(fl.outbound), return: flights(fl.return) },
-    hotels,
-    hotel_tax_pct: Math.min(40, Math.max(0, Number(p.hotel_tax_pct) || 0)),
-    cars,
-    car_days: Math.min(days, Math.max(0, Math.round(Number(p.car_days) || 0))),
-    car_note: str(p.car_note),
-    food_per_person_day_inr: num(p.food_per_person_day_inr, 1500),
-    activities_per_person_inr: num(p.activities_per_person_inr),
-    days: planDays,
+    flights: needs.flights ? { outbound: flights(fl.outbound), return: flights(fl.return) } : { outbound: [], return: [] },
+    hotels: needs.hotel ? hotels : [],
+    hotel_tax_pct: needs.hotel ? Math.min(40, Math.max(0, Number(p.hotel_tax_pct) || 0)) : 0,
+    cars: needs.car ? cars : [],
+    car_days: needs.car ? Math.min(days, Math.max(0, Math.round(Number(p.car_days) || 0))) || (needs.itinerary ? 0 : days) : 0,
+    car_note: needs.car ? str(p.car_note) : "",
+    food_per_person_day_inr: needs.itinerary ? num(p.food_per_person_day_inr, 1500) : 0,
+    activities_per_person_inr: needs.itinerary ? num(p.activities_per_person_inr) : 0,
+    days: needs.itinerary ? planDays : [],
     tips: arr(p.tips).slice(0, 6).map((t) => str(t)).filter(Boolean),
   };
   const missing = [
-    !plan.flights.outbound.length && "outbound flights",
-    !plan.flights.return.length && "return flights",
-    !plan.hotels.length && "hotels",
-    !plan.days.length && "days",
+    needs.flights && !plan.flights.outbound.length && "outbound flights",
+    needs.flights && !plan.flights.return.length && "return flights",
+    needs.hotel && !plan.hotels.length && "hotels",
+    needs.car && !plan.cars.length && "cars",
+    needs.itinerary && !plan.days.length && "days",
   ].filter(Boolean);
   if (missing.length) throw new Error(`Plan is missing ${missing.join(", ")}`);
   return plan;

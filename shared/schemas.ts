@@ -2,20 +2,33 @@ import { z } from "zod";
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use YYYY-MM-DD");
 
+export const needsSchema = z.object({
+  flights: z.boolean(),
+  hotel: z.boolean(),
+  car: z.boolean(),
+  itinerary: z.boolean(),
+}).refine((n) => n.flights || n.hotel || n.car || n.itinerary, { message: "Choose at least one: flights, hotel, car or day-by-day plan" });
+
 export const briefSchema = z.object({
   idea: z.string().trim().max(500).default(""),
   origin: z.string().trim().min(2).max(80),
   start: isoDate,
-  days: z.coerce.number().int().min(3).max(10),
+  days: z.coerce.number().int().min(1).max(10),
   pax: z.coerce.number().int().min(1).max(6),
   budget: z.enum(["Budget", "Mid-range", "Luxury"]),
   interests: z.array(z.string().trim().min(1).max(30)).max(12).default([]),
+  needs: needsSchema.optional(),
 }).refine((b) => b.idea.length > 0 || b.interests.length > 0, {
   message: "Describe a travel idea or choose at least one interest",
   path: ["idea"],
 });
 
 export const recommendRequestSchema = z.object({ brief: briefSchema });
+
+export const intentRequestSchema = z.object({
+  idea: z.string().trim().min(1, "Describe what you need").max(500),
+  origin: z.string().trim().max(80).default(""),
+});
 
 export const planRequestSchema = z.object({
   brief: briefSchema,
@@ -36,10 +49,11 @@ export const saveTripSchema = z.object({
     idea: z.string().max(500).default(""),
     origin: z.string().max(80),
     start: isoDate,
-    days: z.coerce.number().int().min(3).max(10),
+    days: z.coerce.number().int().min(1).max(10),
     pax: z.coerce.number().int().min(1).max(6),
     budget: z.enum(["Budget", "Mid-range", "Luxury"]),
     interests: z.array(z.string().max(30)).max(12).default([]),
+    needs: needsSchema.optional(),
   }),
   plan: z.unknown(),
   sel: z.object({

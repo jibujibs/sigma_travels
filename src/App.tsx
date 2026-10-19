@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Recommendation, TripBrief } from "../shared/types";
+import { ALL_NEEDS, isFullTrip, needsOf, type Intent, type Needs, type Recommendation, type TripBrief } from "../shared/types";
 import { CopilotDrawer } from "./components/CopilotDrawer";
 import { IdeaForm } from "./components/IdeaForm";
 import { MyTrips } from "./components/MyTrips";
@@ -10,13 +10,17 @@ import { copilotContext } from "./lib/context";
 import { getGuestId } from "./lib/guest";
 import { addDays, iso, todayUTC } from "./lib/format";
 import { downloadTripPdf } from "./lib/pdf";
-import { bestReturn, price, type PlanState } from "./lib/trip";
+import { bestReturn, needsList, planNeeds, price, tripLength, type PlanState } from "./lib/trip";
 
 const STORE = "sigma-ai-planner-v1";
 
 const defaultBrief = (): TripBrief => ({
-  idea: "", origin: "Kochi (COK)", start: iso(addDays(todayUTC(), 30)), days: 7, pax: 2, budget: "Mid-range", interests: [],
+  idea: "", origin: "Kochi (COK)", start: iso(addDays(todayUTC(), 30)), days: 7, pax: 2, budget: "Mid-range", interests: [], needs: { ...ALL_NEEDS },
 });
+
+const sameNeeds = (a: Needs, b: Needs) => a.flights === b.flights && a.hotel === b.hotel && a.car === b.car && a.itinerary === b.itinerary;
+const needsText = (n: Needs) => needsList(n).join(" and ").toLowerCase();
+type Place = Pick<Recommendation, "city" | "country" | "airport">;
 
 /** Only the traveller's preferences survive a refresh; results always start empty. */
 interface Prefs { origin: string; start: string; days: number; pax: number; budget: TripBrief["budget"] }
@@ -31,7 +35,7 @@ function loadBrief(): TripBrief {
       ...brief,
       origin: typeof p.origin === "string" && p.origin.trim() ? p.origin : brief.origin,
       start: typeof p.start === "string" && p.start >= iso(todayUTC()) ? p.start : brief.start,
-      days: Number(p.days) >= 3 && Number(p.days) <= 10 ? Number(p.days) : brief.days,
+      days: Number(p.days) >= 1 && Number(p.days) <= 10 ? Number(p.days) : brief.days,
       pax: Number(p.pax) >= 1 && Number(p.pax) <= 6 ? Number(p.pax) : brief.pax,
       budget: p.budget === "Budget" || p.budget === "Luxury" || p.budget === "Mid-range" ? p.budget : brief.budget,
     };
@@ -61,6 +65,9 @@ export default function App() {
   const [showTrips, setShowTrips] = useState(false);
   const [tripBusy, setTripBusy] = useState<string | null>(null);
   const [savedFor, setSavedFor] = useState<PlanState | null>(null);
+  // True once the traveller ticks "I need" boxes by hand; a request that names no specific parts then keeps their ticks.
+  const [needsTouched, setNeedsTouched] = useState(false);
+  const [understood, setUnderstood] = useState<string>();
 
   const refreshTrips = useCallback(async () => {
     try {
@@ -108,10 +115,40 @@ export default function App() {
     }
   }
 
-  async function recommend() {
-    if (!brief.idea.trim() && brief.interests.length === 0) { setFormError("Describe an idea, pick a famous spot or choose an interest."); return; }
+  /** Search: read the request, then go straight to the named place or suggest three. */
+  async function search() {
+    if (!brief.idea.trim() && brief.interests.length === 0) { setFormError("Describe what you need, pick a famous spot or choose an interest."); return; }
     setFormError(undefined);
-    const r = await run("Finding destinations that fit", (s) => api.recommend(brief, s));
+    setUnderstood(undefined);
+    const formNeeds = needsTouched ? needsOf(brief) : { ...ALL_NEEDS };
+    let b: TripBrief = { ...brief, needs: formNeeds };
+    let place: Place | null = null;
+    if (brief.idea.trim()) {
+      // If reading the request fails, carry on as a normal search instead of showing an error.
+      const failed: Intent = { destination: null, needs: null };
+      const intent = await run("Reading your request", async (sig) => {
+        try { return await api.intent(brief.idea, brief.origin, sig); }
+        catch (e) { if ((e as Error).name === "AbortError") throw e; console.warn("Couldn't read the request:", (e as Error).message); return failed; }
+      });
+      if (!intent) return; // stopped
+      if (intent.needs) {
+        b = { ...b, needs: intent.needs };
+        if (!isFullTrip(intent.needs)) setUnderstood(`Showing ${needsText(intent.needs)} only, as you asked. Tick more above and press Update results to add the rest.`);
+      }
+      place = intent.destination;
+    }
+    setBrief(b);
+    setNeedsTouched(false);
+    if (place) {
+      setRecs(null);
+      await plan(place, b);
+    } else {
+      await recommend(b);
+    }
+  }
+
+  async function recommend(b: TripBrief = brief) {
+    const r = await run("Finding destinations that fit", (s) => api.recommend(b, s));
     if (!r) return;
     // New recommendations replace the old ones and clear the previous destination's plan
     // until the traveller picks one of the new destinations.
@@ -121,13 +158,24 @@ export default function App() {
     setTimeout(() => document.getElementById("recs")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
   }
 
-  async function plan(rec: Recommendation) {
-    const r = await run(`Planning ${rec.city}: flights, hotel, car and ${brief.days} days`, (s) => api.plan(brief, rec, s));
+  async function plan(place: Place, b: TripBrief = brief) {
+    const needs = needsOf(b);
+    const label = isFullTrip(needs) ? `Planning ${place.city}: flights, hotel, car and ${b.days} days` : `Finding ${needsText(needs)} for ${place.city}`;
+    const r = await run(label, (s) => api.plan(b, place, s));
     if (!r) return;
-    setPlanState({ brief: { ...brief }, plan: r.plan, sel: { out: 0, ret: bestReturn(r.plan), hotel: 0, car: 0 }, carOn: r.plan.car_days > 0, food: "mid" });
+    setPlanState({ brief: { ...b }, plan: r.plan, sel: { out: 0, ret: bestReturn(r.plan), hotel: 0, car: 0 }, carOn: r.plan.car_days > 0, food: "mid" });
     setModel(r.model);
-    toast(`${rec.city} plan ready`);
+    toast(`${place.city} ${isFullTrip(needs) ? "plan" : needsText(needs)} ready`);
     setTimeout(() => document.getElementById("plan")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  }
+
+  /** The ticked parts changed while a plan is on screen: rebuild it for the same place. */
+  function applyNeeds() {
+    if (!planState) return;
+    const d = planState.plan.destination;
+    setUnderstood(undefined);
+    setNeedsTouched(false);
+    void plan({ city: d.city, country: d.country, airport: d.airport }, brief);
   }
 
   async function saveTrip() {
@@ -190,7 +238,15 @@ export default function App() {
 
       {showTrips && tripsOn && <MyTrips trips={trips} busyId={tripBusy} onOpen={openTrip} onDelete={deleteTrip} onClose={() => setShowTrips(false)} />}
 
-      <IdeaForm brief={brief} onChange={setBrief} onSubmit={recommend} busy={!!busy} error={formError} />
+      <IdeaForm
+        brief={brief}
+        onChange={(b) => { if (!sameNeeds(needsOf(b), needsOf(brief))) setNeedsTouched(true); setBrief(b); }}
+        onSubmit={search}
+        busy={!!busy}
+        error={formError}
+        understood={understood}
+        onApplyNeeds={planState && !sameNeeds(needsOf(brief), planNeeds(planState)) ? applyNeeds : undefined}
+      />
 
       {busy && (
         <div className="status" role="status">
@@ -208,7 +264,7 @@ export default function App() {
       {recs && <div id="recs"><Recommendations recs={recs} planned={planState?.plan.destination.city} pax={brief.pax} busy={!!busy} onPlan={plan} /></div>}
 
       {planState && <PlanView
-        key={`${planState.plan.destination.city}-${planState.brief.start}-${planState.plan.days.length}`}
+        key={`${planState.plan.destination.city}-${planState.brief.start}-${tripLength(planState)}-${needsList(planNeeds(planState)).join("")}`}
         state={planState}
         example={false}
         model={model}

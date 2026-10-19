@@ -1,16 +1,16 @@
 # Sigma Travels · AI Trip Planner
 
-Describe a travel idea or pick a famous spot. Google Gemini recommends three destinations, then builds a full plan: flights, a hotel, a rental car, a day-by-day itinerary and a live quote. Save the itinerary as a PDF, keep trips in **My trips**, and ask **Sigma Copilot** questions about the plan.
+Ask for exactly what you need: flights, a hotel, a rental car or a full trip plan. Gemini reads the request first, so "flights to Dubai" returns only flights with a flights-only quote, while "5 days in Paris" returns the full plan (flights, hotel, rental car, day-by-day itinerary and a live quote). With no place in mind, describe an idea and Gemini recommends three destinations. Save the result as a PDF, keep trips in **My trips**, and ask **Sigma Copilot** questions about it.
 
 **Stack:** React 19 + Vite 7 (frontend) · Vercel Functions in `api/` (backend) · Gemini REST API · Supabase (REST API, no SDK) · pdf-lib (PDF in the browser)
 
 ```
-api/          Vercel Functions: recommend, plan, trips, chat, health, diag
+api/          Vercel Functions: intent, recommend, plan, trips, chat, health, diag
 server/       Gemini client, prompts, Copilot, Supabase client, error handling (server only)
-shared/       Types, request validation (zod), response normaliser, example plan
+shared/       Types, request validation (zod), response normaliser
 src/          React app (components, quote maths, PDF export)
 vite.config.ts  Runs api/*.ts locally during `npm run dev`
-vercel.json   SPA rewrite + 60 s timeout for the AI routes
+vercel.json   SPA rewrite + time limits (300 s for recommend, plan and chat)
 ```
 
 ## Run locally
@@ -56,7 +56,16 @@ The app reuses the tables from the original Sigma Travels migrations, so no new 
 | `itineraries` | **Save trip / My trips**: `criteria` = the form, `segments` = the Gemini plan plus the chosen flight/hotel/car, `total` = quote in INR |
 | `chat_messages` | Sigma Copilot history (`user` and `assistant` rows) |
 
-Row Level Security is on with no policies, so browsers can't read the tables; only the server, with the secret key, can. `share_logs` (email) is not used. `/api/diag` checks that each table is reachable.
+Row Level Security is on with no policies, so browsers can't read the tables; only the server, with the secret key, can. `/api/diag` checks that each table is reachable.
+
+## Only what you ask for
+
+1. `POST /api/intent` sends the free text to Gemini (`intentPrompt` in `server/prompts.ts`). It returns the place, if one is named, and which parts were asked for: flights, hotel, rental car, day-by-day plan.
+2. The **I need** ticks on the form update to match. If a place is named, the app skips the three suggestions and goes straight to it.
+3. `POST /api/plan` asks Gemini only for the ticked parts (`planPrompt`), and `shared/normalize.ts` drops anything else. The page, quote, PDF and Copilot context show only those parts.
+4. The traveller can change the ticks and press **Update results** to rebuild for the same place.
+
+A request that asks for a whole trip, or names only a place or an idea, gets the full plan. If reading the request fails, the app carries on as a normal search. Trips saved before this feature have no `needs` and open as full trips. Return flights are always included; trips can be 1 to 10 days.
 
 ## Sigma Copilot
 

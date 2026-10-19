@@ -24,6 +24,9 @@
     },
     "api/trips.ts": {
       "maxDuration": 30
+    },
+    "api/intent.ts": {
+      "maxDuration": 60
     }
   }
 }

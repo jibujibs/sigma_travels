@@ -1,6 +1,6 @@
 import type { PDFFont, PDFPage, RGB } from "pdf-lib";
 import { addDays, fmtDate, fmtLong, inrPlain, originCity, parseISO } from "./format";
-import { buildDays, FOOD_LABEL, homeCode, picks, price, type PlanState } from "./trip";
+import { buildDays, FOOD_LABEL, homeCode, needsList, picks, planNeeds, price, tripLength, type PlanState } from "./trip";
 
 /* Standard PDF fonts only cover Latin-1/Windows-1252. Map what we can, drop the rest. */
 const CP1252_EXTRA = "€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ";
@@ -24,12 +24,14 @@ export async function downloadTripPdf(state: PlanState): Promise<void> {
   const days = buildDays(state);
   const q = price(state);
   const { out, ret, hotel, car } = picks(state);
+  const n = planNeeds(state);
+  const len = tripLength(state);
   const start = parseISO(brief.start);
-  const end = addDays(start, plan.days.length - 1);
+  const end = addDays(start, len - 1);
   const dest = `${plan.destination.city}${plan.destination.country ? ", " + plan.destination.country : ""}`;
 
   const doc = await PDFDocument.create();
-  doc.setTitle(`Sigma Travels · ${dest} itinerary`);
+  doc.setTitle(`Sigma Travels · ${dest} ${n.itinerary ? "itinerary" : "quote"}`);
   doc.setAuthor("Sigma Travels");
   doc.setCreator("Sigma Travels Trip Planner");
   const font = await doc.embedFont(StandardFonts.Helvetica);
@@ -122,7 +124,7 @@ export async function downloadTripPdf(state: PlanState): Promise<void> {
   /* ---- cover band ---- */
   const band = 104;
   page.drawRectangle({ x: 0, y: PH - band, width: PW, height: band, color: C.teal });
-  draw("SIGMA TRAVELS · TRIP ITINERARY", M, PH - 32, 9, bold, C.white);
+  draw(n.itinerary ? "SIGMA TRAVELS · TRIP ITINERARY" : `SIGMA TRAVELS · ${needsList(n).join(" + ").toUpperCase()} QUOTE`, M, PH - 32, 9, bold, C.white);
   draw(dest, M, PH - 62, 24, bold, C.white);
   draw(`${originCity(brief.origin)} (${homeCode(plan, brief.origin)}) -> ${plan.destination.city} (${plan.destination.airport})  ·  ${fmtLong(start)} – ${fmtLong(end)}  ·  ${brief.pax} adult${brief.pax > 1 ? "s" : ""}`, M, PH - 84, 10, font, C.white);
   y = PH - band - 18;
@@ -133,7 +135,14 @@ export async function downloadTripPdf(state: PlanState): Promise<void> {
   draw("ESTIMATED TOTAL", M + 14, y - 20, 8, bold, C.muted);
   draw(inrPlain(q.total), M + 14, y - 44, 22, bold, C.ink);
   draw(`${inrPlain(q.perPerson)} per person`, M + 14, y - 57, 9, font, C.muted);
-  const meta: [string, string][] = [["Days", `${plan.days.length} days, ${q.nights} nights`], ["Style", brief.budget], ["Food", FOOD_LABEL[state.food]], ["Rental car", state.carOn && car && plan.car_days ? `${plan.car_days} day${plan.car_days > 1 ? "s" : ""}` : "Not included"]];
+  const meta: [string, string][] = [
+    ["Days", `${len} day${len > 1 ? "s" : ""}${n.hotel || n.itinerary ? `, ${q.nights} night${q.nights > 1 ? "s" : ""}` : ""}`],
+    ["Style", brief.budget],
+    n.itinerary ? ["Food", FOOD_LABEL[state.food]] : ["Includes", needsList(n).join(", ")],
+    n.car
+      ? ["Rental car", state.carOn && car && plan.car_days ? `${plan.car_days} day${plan.car_days > 1 ? "s" : ""}` : "Not included"]
+      : ["Travellers", `${brief.pax} adult${brief.pax > 1 ? "s" : ""}`],
+  ];
   meta.forEach(([k, v], i) => {
     const x = M + 230 + (i % 2) * 140, yy = y - 22 - Math.floor(i / 2) * 24;
     draw(k.toUpperCase(), x, yy, 7.5, bold, C.muted);
@@ -143,24 +152,29 @@ export async function downloadTripPdf(state: PlanState): Promise<void> {
   if (plan.destination.summary) para(plan.destination.summary, 10, font, C.muted);
 
   /* ---- flights ---- */
-  heading("Flights");
-  const fr = (leg: string, f: typeof out) => [leg, f.airline, f.route, f.depart, `${f.arrive}${f.arrive_next_day ? " (+1)" : ""}`, [f.stops, f.duration].filter(Boolean).join(", "), inrPlain(f.fare_inr)];
-  table(
-    [{ h: "Leg", w: 0.15 }, { h: "Airline", w: 0.18 }, { h: "Route", w: 0.15 }, { h: "Departs", w: 0.09 }, { h: "Arrives", w: 0.1 }, { h: "Stops", w: 0.19 }, { h: "Fare pp", w: 0.14, align: "right" }],
-    [fr(`Out · ${fmtDate(start)}`, out), fr(`Return · ${fmtDate(end)}`, ret)],
-  );
+  if (n.flights && out && ret) {
+    heading("Flights");
+    const fr = (leg: string, f: typeof out) => [leg, f.airline, f.route, f.depart, `${f.arrive}${f.arrive_next_day ? " (+1)" : ""}`, [f.stops, f.duration].filter(Boolean).join(", "), inrPlain(f.fare_inr)];
+    table(
+      [{ h: "Leg", w: 0.15 }, { h: "Airline", w: 0.18 }, { h: "Route", w: 0.15 }, { h: "Departs", w: 0.09 }, { h: "Arrives", w: 0.1 }, { h: "Stops", w: 0.19 }, { h: "Fare pp", w: 0.14, align: "right" }],
+      [fr(`Out · ${fmtDate(start)}`, out), fr(`Return · ${fmtDate(end)}`, ret)],
+    );
+  }
 
   /* ---- stay & car ---- */
-  heading("Hotel and rental car");
-  const rows: string[][] = [
-    ["Hotel", `${hotel.name}${hotel.area ? ", " + hotel.area : ""}${hotel.tier ? " (" + hotel.tier + ")" : ""}`, `${inrPlain(hotel.rate_inr)} / room / night · ${q.rooms} room${q.rooms > 1 ? "s" : ""} × ${q.nights} nights${plan.hotel_tax_pct ? ` + ${plan.hotel_tax_pct}% tax` : ""}`],
-  ];
-  if (state.carOn && car && plan.car_days > 0) rows.push(["Rental car", `${car.name}${car.company ? " · " + car.company : ""} (${car.mode}, ${car.seats} seats)`, `${inrPlain(car.daily_inr)} / day × ${plan.car_days} day${plan.car_days > 1 ? "s" : ""}${car.includes ? " · " + car.includes : ""}`]);
-  else rows.push(["Rental car", "Not included", plan.car_note || ""]);
-  table([{ h: "Item", w: 0.16 }, { h: "Choice", w: 0.42 }, { h: "Details", w: 0.42 }], rows);
+  if ((n.hotel && hotel) || n.car) {
+    heading(n.hotel && n.car ? "Hotel and rental car" : n.hotel ? "Hotel" : "Rental car");
+    const rows: string[][] = [];
+    if (n.hotel && hotel) rows.push(["Hotel", `${hotel.name}${hotel.area ? ", " + hotel.area : ""}${hotel.tier ? " (" + hotel.tier + ")" : ""}`, `${inrPlain(hotel.rate_inr)} / room / night · ${q.rooms} room${q.rooms > 1 ? "s" : ""} × ${q.nights} night${q.nights > 1 ? "s" : ""}${plan.hotel_tax_pct ? ` + ${plan.hotel_tax_pct}% tax` : ""}`]);
+    if (n.car) {
+      if (state.carOn && car && plan.car_days > 0) rows.push(["Rental car", `${car.name}${car.company ? " · " + car.company : ""} (${car.mode}, ${car.seats} seats)`, `${inrPlain(car.daily_inr)} / day × ${plan.car_days} day${plan.car_days > 1 ? "s" : ""}${car.includes ? " · " + car.includes : ""}`]);
+      else rows.push(["Rental car", "Not included", plan.car_note || ""]);
+    }
+    table([{ h: "Item", w: 0.16 }, { h: "Choice", w: 0.42 }, { h: "Details", w: 0.42 }], rows);
+  }
 
   /* ---- itinerary ---- */
-  heading("Day-by-day itinerary");
+  if (days.length) heading("Day-by-day itinerary");
   days.forEach((d, i) => {
     ensure(22 + 40);
     y -= 4;
@@ -207,7 +221,7 @@ export async function downloadTripPdf(state: PlanState): Promise<void> {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `sigma-trip-${plan.destination.city.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${brief.start}.pdf`;
+  a.download = `sigma-${n.itinerary ? "trip" : "quote"}-${plan.destination.city.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${brief.start}.pdf`;
   document.body.appendChild(a);
   a.click();
   a.remove();

@@ -1,4 +1,4 @@
-import type { PlanResponse, RecommendResponse, Recommendation, TripBrief, TripPlan } from "../../shared/types";
+import type { IntentResponse, PlanResponse, RecommendResponse, Recommendation, TripBrief, TripPlan } from "../../shared/types";
 import type { PlanState } from "./trip";
 
 export class ApiError extends Error {
@@ -43,6 +43,7 @@ export interface SavedTrip extends TripSummary {
 export interface ChatMsg { role: "user" | "assistant"; content: string }
 
 export const api = {
+  intent: (idea: string, origin: string, signal?: AbortSignal) => post<IntentResponse>("/api/intent", { idea, origin }, signal),
   recommend: (brief: TripBrief, signal?: AbortSignal) => post<RecommendResponse>("/api/recommend", { brief }, signal),
   plan: (brief: TripBrief, d: Pick<Recommendation, "city" | "country" | "airport">, signal?: AbortSignal) =>
     post<PlanResponse>("/api/plan", { brief, destination: { city: d.city, country: d.country, airport: d.airport } }, signal),
