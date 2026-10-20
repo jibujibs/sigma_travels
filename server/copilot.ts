@@ -5,7 +5,7 @@ export interface Turn { role: "user" | "assistant"; content: string }
 
 export function copilotPrompt(context: string, history: Turn[], message: string): string {
   const convo = history.map((t) => `${t.role === "user" ? "Traveller" : "Sigma Copilot"}: ${t.content}`).join("\n");
-  return `You are Sigma Copilot, the friendly travel assistant of Sigma Travels, an Indian travel agency.
+  return `You are Sigma Copilot, the friendly travel assistant of Sigma Travels, a global travel agency.
 Answer the traveller's question using the trip context below (it is what they see on screen) and your general travel knowledge.
 Rules:
 - Always reply in English, even if the question is in another language.
