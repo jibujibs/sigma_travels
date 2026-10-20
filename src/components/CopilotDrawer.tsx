@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { api, type ChatMsg } from "../lib/api";
 import { getThreadId, newThreadId } from "../lib/guest";
 
@@ -11,7 +11,22 @@ interface Props {
   raised: boolean;
 }
 
-const WELCOME = "Hi! I'm Sigma Copilot. Ask me anything about your trip: what to pack, visas, the best hotel, or what to do on Day 2.";
+const WELCOME = "Hi! I'm Sigma Copilot. Ask me anything about your trip: visas, flights, hotels, what to pack or what to do there.";
+
+/**
+ * Gemini sometimes answers in Markdown. Show **bold** as bold and turn "* item" / "- item" / "# Heading"
+ * into plain lines, so no stray symbols appear. Builds React elements (no HTML injection).
+ */
+function formatReply(text: string): ReactNode {
+  const clean = text
+    .replace(/^\s{0,3}#{1,6}\s+/gm, "")
+    .replace(/^(\s*)[*-]\s+/gm, "$1• ");
+  return clean.split(/(\*\*[^*\n]+\*\*)/g).map((part, i) =>
+    /^\*\*[^*\n]+\*\*$/.test(part)
+      ? <strong key={i}>{part.slice(2, -2)}</strong>
+      : <Fragment key={i}>{part.replace(/\*\*/g, "")}</Fragment>,
+  );
+}
 
 export function CopilotDrawer({ guestId, getContext, hasPlan, raised }: Props) {
   const [open, setOpen] = useState(false);
@@ -67,7 +82,7 @@ export function CopilotDrawer({ guestId, getContext, hasPlan, raised }: Props) {
   }
 
   const suggestions = hasPlan
-    ? ["What should I pack?", "Which hotel is best value?", "Do I need a visa?", "Summarise Day 2"]
+    ? ["What should I pack?", "Do I need a visa?", "Summarise my trip", "Best time to visit?"]
     : ["Suggest a 5-day trip under ₹50,000", "Best places to visit in December?", "Beach or mountains for a family?"];
 
   return (
@@ -91,7 +106,7 @@ export function CopilotDrawer({ guestId, getContext, hasPlan, raised }: Props) {
 
           <div className="copilot-msgs" ref={listRef}>
             <div className="msg assistant">{WELCOME}</div>
-            {msgs.map((m, i) => <div key={i} className={`msg ${m.role}`}>{m.content}</div>)}
+            {msgs.map((m, i) => <div key={i} className={`msg ${m.role}`}>{m.role === "assistant" ? formatReply(m.content) : m.content}</div>)}
             {sending && <div className="msg assistant typing" aria-live="polite"><span /><span /><span /></div>}
             {note && <p className="fine" style={{ textAlign: "center" }}>{note}</p>}
           </div>

@@ -13,13 +13,15 @@ interface Props {
   onSubmit: () => void;
   busy: boolean;
   error?: string;
+  /** Shown under "From · your city" when it is empty. */
+  originError?: string;
   /** Shown when a plan is on screen and the ticked parts differ from it: rebuild for the same place. */
   onApplyNeeds?: () => void;
   /** One line explaining what was understood from the request, e.g. "Showing flights only, as you asked." */
   understood?: string;
 }
 
-export function IdeaForm({ brief, onChange, onSubmit, busy, error, onApplyNeeds, understood }: Props) {
+export function IdeaForm({ brief, onChange, onSubmit, busy, error, originError, onApplyNeeds, understood }: Props) {
   const set = <K extends keyof TripBrief>(k: K, v: TripBrief[K]) => onChange({ ...brief, [k]: v });
   const toggle = (i: string) => set("interests", brief.interests.includes(i) ? brief.interests.filter((x) => x !== i) : [...brief.interests, i]);
   const needs = needsOf(brief);
@@ -63,7 +65,9 @@ export function IdeaForm({ brief, onChange, onSubmit, busy, error, onApplyNeeds,
       </div>
       <div className="form-row">
         <div className="field"><label className="lbl" htmlFor="origin">From · your city</label>
-          <input id="origin" type="text" placeholder="e.g. Kochi (COK)" value={brief.origin} onChange={(e) => set("origin", e.target.value)} /></div>
+          <input id="origin" type="text" className={originError ? "invalid" : ""} aria-invalid={!!originError} aria-describedby={originError ? "origin-err" : undefined}
+            placeholder="e.g. Trivandrum (TRV), San Francisco (SFO), Dubai (DXB)" value={brief.origin} maxLength={80} onChange={(e) => set("origin", e.target.value)} />
+          {originError && <p className="err-text" id="origin-err">{originError}</p>}</div>
         <div className="field"><label className="lbl" htmlFor="start">Start date</label>
           <input id="start" type="date" min={iso(todayUTC())} value={brief.start} onChange={(e) => e.target.value && set("start", e.target.value)} /></div>
         <div className="field"><label className="lbl" htmlFor="days">Days</label>

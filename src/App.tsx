@@ -15,7 +15,7 @@ import { bestReturn, needsList, planNeeds, price, tripLength, type PlanState } f
 const STORE = "sigma-ai-planner-v1";
 
 const defaultBrief = (): TripBrief => ({
-  idea: "", origin: "Kochi (COK)", start: iso(addDays(todayUTC(), 30)), days: 7, pax: 2, budget: "Mid-range", interests: [], needs: { ...ALL_NEEDS },
+  idea: "", origin: "", start: iso(addDays(todayUTC(), 30)), days: 7, pax: 2, budget: "Mid-range", interests: [], needs: { ...ALL_NEEDS },
 });
 
 const sameNeeds = (a: Needs, b: Needs) => a.flights === b.flights && a.hotel === b.hotel && a.car === b.car && a.itinerary === b.itinerary;
@@ -54,6 +54,7 @@ export default function App() {
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string>();
+  const [originError, setOriginError] = useState<string>();
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [, setTick] = useState(0);
   const ctl = useRef<AbortController | null>(null);
@@ -117,8 +118,14 @@ export default function App() {
 
   /** Search: read the request, then go straight to the named place or suggest three. */
   async function search() {
-    if (!brief.idea.trim() && brief.interests.length === 0) { setFormError("Describe what you need, pick a famous spot or choose an interest."); return; }
-    setFormError(undefined);
+    const noIdea = !brief.idea.trim() && brief.interests.length === 0;
+    const noOrigin = brief.origin.trim().length < 2;
+    setFormError(noIdea ? "Describe what you need, pick a famous spot or choose an interest." : undefined);
+    setOriginError(noOrigin ? "Enter the city you're flying from." : undefined);
+    if (noIdea || noOrigin) {
+      if (!noIdea) document.getElementById("origin")?.focus();
+      return;
+    }
     setUnderstood(undefined);
     const formNeeds = needsTouched ? needsOf(brief) : { ...ALL_NEEDS };
     let b: TripBrief = { ...brief, needs: formNeeds };
@@ -159,6 +166,11 @@ export default function App() {
   }
 
   async function plan(place: Place, b: TripBrief = brief) {
+    if (b.origin.trim().length < 2) {
+      setOriginError("Enter the city you're flying from.");
+      document.getElementById("origin")?.focus();
+      return;
+    }
     const needs = needsOf(b);
     const label = isFullTrip(needs) ? `Planning ${place.city}: flights, hotel, car and ${b.days} days` : `Finding ${needsText(needs)} for ${place.city}`;
     const r = await run(label, (s) => api.plan(b, place, s));
@@ -240,10 +252,15 @@ export default function App() {
 
       <IdeaForm
         brief={brief}
-        onChange={(b) => { if (!sameNeeds(needsOf(b), needsOf(brief))) setNeedsTouched(true); setBrief(b); }}
+        onChange={(b) => {
+          if (!sameNeeds(needsOf(b), needsOf(brief))) setNeedsTouched(true);
+          if (originError && b.origin.trim().length >= 2) setOriginError(undefined);
+          setBrief(b);
+        }}
         onSubmit={search}
         busy={!!busy}
         error={formError}
+        originError={originError}
         understood={understood}
         onApplyNeeds={planState && !sameNeeds(needsOf(brief), planNeeds(planState)) ? applyNeeds : undefined}
       />
