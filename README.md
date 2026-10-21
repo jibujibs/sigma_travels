@@ -1,14 +1,14 @@
 # Sigma Travels · AI Trip Planner
 
-Ask for exactly what you need: flights, a hotel, a rental car or a full trip plan. Gemini reads the request first, so "flights to Dubai" returns only flights with a flights-only quote, while "5 days in Paris" returns the full plan (flights, hotel, rental car, day-by-day itinerary and a live quote). With no place in mind, describe an idea and Gemini recommends three destinations. Save the result as a PDF, keep trips in **My trips**, and ask **Sigma Copilot** questions about it.
+Ask for exactly what you need: flights, a hotel, a rental car or a full trip plan. Gemini reads the request first, so "flights to Dubai" returns only flights with a flights-only quote, while "5 days in Paris" returns the full plan (flights, hotel, rental car, day-by-day itinerary and a live quote). With no place in mind, describe an idea and Gemini recommends three destinations. Save the result as a PDF, keep trips in **My trips**, and ask **Sigma Copilot** questions about it. Only approved Google accounts can use the app, and each traveller's home airport is remembered.
 
-**Stack:** React 19 + Vite 7 (frontend) · Vercel Functions in `api/` (backend) · Gemini REST API · Supabase (REST API, no SDK) · pdf-lib (PDF in the browser)
+**Stack:** React 19 + Vite 7 (frontend) · Vercel Functions in `api/` (backend) · Gemini REST API · Supabase database and Auth (REST API, no SDK) · pdf-lib (PDF in the browser)
 
 ```
-api/          Vercel Functions: intent, recommend, plan, trips, chat, health, diag
-server/       Gemini client, prompts, Copilot, Supabase client, error handling (server only)
+api/          Vercel Functions: intent, recommend, plan, trips, chat, profile, health, diag
+server/       Gemini client, prompts, Copilot, Supabase client, sign-in check, error handling (server only)
 shared/       Types, request validation (zod), response normaliser
-src/          React app (components, quote maths, PDF export)
+src/          React app (sign-in, components, quote maths, PDF export)
 vite.config.ts  Runs api/*.ts locally during `npm run dev`
 vercel.json   SPA rewrite + time limits (300 s for recommend, plan and chat)
 ```
@@ -22,9 +22,11 @@ vercel.json   SPA rewrite + time limits (300 s for recommend, plan and chat)
    GEMINI_API_KEY=your-gemini-key
    SUPABASE_URL=https://your-project-id.supabase.co
    SUPABASE_SERVICE_ROLE_KEY=your-supabase-secret-key
+   VITE_SUPABASE_URL=https://your-project-id.supabase.co
+   VITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
    ```
 
-   Copy the values from the original Sigma project's `.env.local`. **Never** prefix them with `VITE_`, because that would put them in the public browser bundle. Without the Supabase lines the app still works; only **Save trip / My trips** and chat history are hidden.
+   The first three are server secrets. **Never** prefix them with `VITE_`, because that would put them in the public browser bundle. The two `VITE_` lines are public on purpose: the browser needs them to sign in with Google (see **Sign-in** below).
 3. Install and start:
 
    ```
@@ -32,7 +34,7 @@ vercel.json   SPA rewrite + time limits (300 s for recommend, plan and chat)
    npm run dev
    ```
 
-4. Open http://localhost:5173. Check http://localhost:5173/api/health. It should show `"gemini": true` and `"supabase": true`.
+4. Open http://localhost:5173 and sign in with an approved Google account. http://localhost:5173/api/health should show `"gemini": true` and `"supabase": true`.
 
 **Optional:** to pin a model, set `GEMINI_MODEL=...` in `.env.local`. If you don't, the server tries current Flash models in order and skips any your key can't use.
 
@@ -43,20 +45,46 @@ vercel.json   SPA rewrite + time limits (300 s for recommend, plan and chat)
    - Framework: **Vite**
    - Build command: `npm run build`
    - Output: `dist`
-3. Under **Environment Variables**, add `GEMINI_API_KEY`, `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`, for both Production and Preview.
+3. Under **Environment Variables**, add `GEMINI_API_KEY`, `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` (Secret), and `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` (Config).
 4. Click **Deploy**, then open `https://<your-app>.vercel.app/api/health` to check.
 
 ## Supabase
 
-The app reuses the tables from the original Sigma Travels migrations, so no new SQL is needed:
+The app reuses the tables from the original Sigma Travels migrations, plus one table and three columns for sign-in:
 
 | Table | Used for |
 |---|---|
-| `users` | one row per browser (a random guest id, no login) |
+| `users` | one row per Google account: `auth_user_id` (Supabase Auth user), `email`, `home_airport`. Older rows have a browser `guest_id` |
+| `allowed_emails` | the accounts allowed to use the app (lower-case emails) |
 | `itineraries` | **Save trip / My trips**: `criteria` = the form, `segments` = the Gemini plan plus the chosen flight/hotel/car, `total` = quote in INR |
 | `chat_messages` | Sigma Copilot history (`user` and `assistant` rows) |
 
 Row Level Security is on with no policies, so browsers can't read the tables; only the server, with the secret key, can. `/api/diag` checks that each table is reachable.
+
+The sign-in columns and table were added with:
+
+```sql
+alter table public.users
+  add column if not exists auth_user_id uuid unique references auth.users(id) on delete cascade,
+  add column if not exists email text,
+  add column if not exists home_airport text;
+alter table public.users alter column guest_id drop not null;
+create table if not exists public.allowed_emails (
+  email text primary key check (email = lower(email)), note text, created_at timestamptz not null default now()
+);
+alter table public.allowed_emails enable row level security;
+```
+
+## Sign-in (Google)
+
+1. Opening the site without signing in shows only **Sign in with Google**.
+2. `src/lib/auth.ts` sends the browser to Supabase Auth, which hands over to Google (OAuth with PKCE). Google sends the traveller back with a one-time code, which is swapped for an access token (about an hour) and a refresh token kept in the browser.
+3. Every API call carries the token. `server/auth.ts` asks Supabase Auth who it belongs to and checks the email is in `allowed_emails`. Without a valid, approved token, `intent`, `recommend`, `plan`, `chat`, `trips`, `profile` and `diag` answer 401 or 403 and never call Gemini.
+4. On the first sign-in the traveller picks a **home airport**. It is saved in `users.home_airport` and fills **From** on every device; the account menu has **Change** and **Sign out**. Trips saved earlier as a guest in the same browser move to the account.
+
+**Setup:** Google Cloud → Google Auth Platform: a Web client with JavaScript origins `http://localhost:5173` and the Vercel URL, and redirect URI `https://<project>.supabase.co/auth/v1/callback`. While the app is in *Testing*, add each person under **Audience → Test users**. Supabase → Authentication → Sign In / Providers → Google: paste the client ID and secret; URL Configuration: Site URL = the Vercel URL, Redirect URLs = `http://localhost:5173/**` and `https://<your-app>.vercel.app/**`.
+
+**Give someone access:** add their email (lower case) to `allowed_emails` in the Supabase Table Editor, and to Google's test users while the app is in Testing.
 
 ## Only what you ask for
 
@@ -69,7 +97,7 @@ A request that asks for a whole trip, or names only a place or an idea, gets the
 
 ## Sigma Copilot
 
-The **Sigma Copilot** button opens a side chat. Each question is sent to `/api/chat` with a text summary of what's on screen (form, recommendations, current plan and quote), and Gemini answers in English. If Gemini is unavailable, Copilot replies with a short notice instead of failing. History is saved in Supabase when it's configured.
+The **Sigma Copilot** button opens a side chat. Each question is sent to `/api/chat` with a text summary of what's on screen (form, recommendations, current plan and quote), and Gemini answers in English. If Gemini is unavailable, Copilot replies with a short notice instead of failing. History is saved in Supabase under the signed-in account.
 
 ## Notes
 

@@ -1,5 +1,6 @@
 import { needsOf, type Budget, type Needs, type TripBrief } from "../../shared/types";
 import { iso, todayUTC } from "../lib/format";
+import { AIRPORTS } from "../lib/airports";
 import { NEED_LABEL } from "../lib/trip";
 
 const SPOTS = ["Eiffel Tower, Paris", "Taj Mahal, Agra", "Machu Picchu, Peru", "Santorini, Greece", "Kyoto temples", "Bali beaches", "Swiss Alps", "Dubai", "Maldives", "New York City", "Petra, Jordan", "Northern Lights, Norway"];
@@ -65,8 +66,9 @@ export function IdeaForm({ brief, onChange, onSubmit, busy, error, originError, 
       </div>
       <div className="form-row">
         <div className="field"><label className="lbl" htmlFor="origin">From · your city</label>
-          <input id="origin" type="text" className={originError ? "invalid" : ""} aria-invalid={!!originError} aria-describedby={originError ? "origin-err" : undefined}
+          <input id="origin" type="text" list="origin-airports" className={originError ? "invalid" : ""} aria-invalid={!!originError} aria-describedby={originError ? "origin-err" : undefined}
             placeholder="e.g. Trivandrum (TRV), San Francisco (SFO), Dubai (DXB)" value={brief.origin} maxLength={80} onChange={(e) => set("origin", e.target.value)} />
+          <datalist id="origin-airports">{AIRPORTS.map((a) => <option key={a} value={a} />)}</datalist>
           {originError && <p className="err-text" id="origin-err">{originError}</p>}</div>
         <div className="field"><label className="lbl" htmlFor="start">Start date</label>
           <input id="start" type="date" min={iso(todayUTC())} value={brief.start} onChange={(e) => e.target.value && set("start", e.target.value)} /></div>

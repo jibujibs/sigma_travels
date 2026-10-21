@@ -212,3 +212,24 @@ h2{font-family:var(--display);font-size:24px;margin:0;letter-spacing:-.01em;text
 .copilot-input textarea{flex:1;resize:none;background:var(--sunk);border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-height:44px;max-height:140px}
 .copilot-head > div:first-child{min-width:0}
 .copilot-head-actions .btn{white-space:nowrap}
+
+/* sign-in gate, home airport, account menu */
+.gate{min-height:100vh;min-height:100dvh;display:grid;place-items:center;padding-block:32px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.gate-card{width:min(460px,100%);background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:28px;display:grid;gap:16px}
+.gate-card h1{font-family:var(--display);font-weight:800;font-size:clamp(26px,4vw,32px);line-height:1.1;margin:4px 0 0;letter-spacing:-.02em;text-wrap:balance}
+.gate-card .hint{margin:0}
+.gate-card .fine{margin:0;font-size:13px;color:var(--muted)}
+.gate-card code{font-family:var(--mono);font-size:.85em;background:var(--sunk);padding:1px 5px;border-radius:5px}
+.gate-card .field input[type=text]{min-width:0;width:100%}
+.gate-actions{display:flex;gap:10px;flex-wrap:wrap}
+.btn.google{display:inline-flex;align-items:center;justify-content:center;gap:10px;background:var(--surface);color:var(--ink);border-color:var(--line);min-height:48px;font-size:16px}
+.btn.google:hover:not(:disabled){border-color:var(--teal)}
+.modal-back{position:fixed;inset:0;z-index:60;background:color-mix(in srgb,var(--ink) 45%,transparent);display:grid;place-items:center;padding:16px}
+.account{position:relative}
+.account-btn{display:inline-flex;align-items:center;gap:8px;padding:4px 12px 4px 4px}
+.avatar{width:32px;height:32px;border-radius:50%;object-fit:cover;background:var(--teal-soft);color:var(--teal);display:grid;place-items:center;font-weight:700;flex:none}
+.account-menu{position:absolute;right:0;top:calc(100% + 8px);z-index:50;width:min(300px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:14px;display:grid;gap:12px;box-shadow:0 12px 32px color-mix(in srgb,var(--ink) 18%,transparent)}
+.account-who{display:grid;gap:2px;min-width:0}
+.account-who span{font-size:14px;color:var(--muted);overflow-wrap:anywhere}
+.account-row{display:flex;align-items:center;justify-content:space-between;gap:10px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding-block:10px}
+.account-row .lbl{margin-bottom:2px}

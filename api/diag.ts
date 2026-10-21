@@ -4,5 +4,5 @@ import { GET as health } from "./health.js";
 export function GET(request: Request): Promise<Response> {
   const url = new URL(request.url);
   url.searchParams.set("check", "1");
-  return health(new Request(url.href, { method: "GET" }));
+  return health(new Request(url.href, { method: "GET", headers: request.headers }));
 }

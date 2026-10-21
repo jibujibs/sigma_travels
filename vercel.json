@@ -27,6 +27,9 @@
     },
     "api/intent.ts": {
       "maxDuration": 60
+    },
+    "api/profile.ts": {
+      "maxDuration": 30
     }
   }
 }

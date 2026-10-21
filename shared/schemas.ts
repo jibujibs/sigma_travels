@@ -43,8 +43,13 @@ export const planRequestSchema = z.object({
 
 export const guestIdSchema = z.string().uuid("Invalid guest id");
 
+export const homeAirportSchema = z.object({
+  homeAirport: z.string().trim().min(2, "Choose your home airport").max(80),
+});
+
 export const saveTripSchema = z.object({
-  guestId: guestIdSchema,
+  /** Ignored since sign-in: the account comes from the sign-in token. Kept so older clients still work. */
+  guestId: guestIdSchema.optional(),
   brief: z.object({
     idea: z.string().max(500).default(""),
     origin: z.string().max(80),
@@ -68,7 +73,7 @@ export const saveTripSchema = z.object({
 });
 
 export const chatRequestSchema = z.object({
-  guestId: guestIdSchema,
+  guestId: guestIdSchema.optional(),
   threadId: z.string().uuid("Invalid thread id"),
   message: z.string().trim().min(1, "Type a question").max(1000),
   /** What the traveller sees right now (plan summary, recommendations), built by the browser. */

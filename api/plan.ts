@@ -1,3 +1,4 @@
+import { requireUser } from "../server/auth.js";
 import { generateJson } from "../server/gemini.js";
 import { handle, HttpError, json, parseBody } from "../server/http.js";
 import { planPrompt } from "../server/prompts.js";
@@ -6,6 +7,7 @@ import { planRequestSchema } from "../shared/schemas.js";
 import { ALL_NEEDS } from "../shared/types.js";
 
 export const POST = handle(async (request) => {
+  await requireUser(request); // signed-in, approved users only: nothing reaches Gemini otherwise
   const { brief, destination } = await parseBody(request, planRequestSchema);
   const needs = brief.needs ?? ALL_NEEDS;
   // A day-by-day plan is the long part; without it the answer is short.

@@ -1,3 +1,4 @@
+import type { AuthUser } from "./auth.js";
 import { HttpError } from "./http.js";
 
 /**
@@ -6,7 +7,8 @@ import { HttpError } from "./http.js";
  * which bypasses Row Level Security and must never reach the browser.
  *
  * Tables used (created by the original Sigma Travels migrations):
- *   users          guest_id → id
+ *   users          guest_id or auth_user_id → id, plus email and home_airport
+ *   allowed_emails who may sign in (the guest list)
  *   itineraries    saved trips (criteria = brief, segments = plan + choices)
  *   chat_messages  Sigma Copilot history
  */
@@ -65,15 +67,60 @@ const enc = encodeURIComponent;
 
 /* ---------- users ---------- */
 
-/** Finds the guest by their browser guestId, or creates them. Returns users.id. */
-export async function ensureUser(guestId: string): Promise<string> {
-  const rows = await rest<{ id: string }[]>("finding or creating the guest", "users?on_conflict=guest_id&select=id", {
-    method: "POST",
-    body: [{ guest_id: guestId }],
-    prefer: "resolution=merge-duplicates,return=representation",
+/* ---------- signed-in users (Google via Supabase Auth) ---------- */
+
+/** Is this email on the allowed_emails list? Emails are stored in lower case. */
+export async function isEmailAllowed(email: string): Promise<boolean> {
+  const rows = await rest<{ email: string }[]>("checking the allowed list", `allowed_emails?select=email&email=eq.${enc(email.toLowerCase())}&limit=1`);
+  return rows.length > 0;
+}
+
+export interface UserRow { id: string; home_airport: string | null }
+
+const userIds = new Map<string, UserRow>();
+
+/**
+ * Finds the users row for a signed-in Google account, or creates it.
+ * On the very first sign-in, the row this browser used as a guest (if any) is
+ * linked to the account instead, so trips and chats saved before keep showing.
+ */
+export async function ensureAuthUser(user: AuthUser, guestId?: string): Promise<UserRow> {
+  const cached = userIds.get(user.id);
+  if (cached) return cached;
+  const action = "finding your account";
+  const pick = "select=id,home_airport";
+  let rows = await rest<UserRow[]>(action, `users?${pick}&auth_user_id=eq.${enc(user.id)}&limit=1`);
+  if (!rows.length && guestId) {
+    rows = await rest<UserRow[]>(action, `users?${pick}&guest_id=eq.${enc(guestId)}&auth_user_id=is.null`, {
+      method: "PATCH",
+      body: { auth_user_id: user.id, email: user.email },
+      prefer: "return=representation",
+    });
+  }
+  if (!rows.length) {
+    rows = await rest<UserRow[]>(action, `users?on_conflict=auth_user_id&${pick}`, {
+      method: "POST",
+      body: [{ auth_user_id: user.id, email: user.email }],
+      prefer: "resolution=merge-duplicates,return=representation",
+    });
+  }
+  const row = rows[0];
+  if (!row?.id) throw new DatabaseError(action, "No row returned.");
+  if (userIds.size > 500) userIds.clear();
+  userIds.set(user.id, row);
+  return row;
+}
+
+export async function setHomeAirport(user: AuthUser, homeAirport: string): Promise<UserRow> {
+  const row = await ensureAuthUser(user);
+  const rows = await rest<UserRow[]>("saving your home airport", `users?id=eq.${enc(row.id)}&select=id,home_airport`, {
+    method: "PATCH",
+    body: { home_airport: homeAirport },
+    prefer: "return=representation",
   });
-  if (!rows?.[0]?.id) throw new DatabaseError("finding or creating the guest", "No row returned.");
-  return rows[0].id;
+  const updated = rows[0] ?? { ...row, home_airport: homeAirport };
+  userIds.set(user.id, updated);
+  return updated;
 }
 
 /* ---------- trips (itineraries table) ---------- */
@@ -138,9 +185,9 @@ export function getChatHistory(userId: string, threadId: string, limit = 60): Pr
 /** Checks each table the app uses is reachable with the server key. Never returns the key. */
 export async function checkTables(): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
-  for (const t of ["users", "itineraries", "chat_messages"]) {
+  for (const t of ["users", "itineraries", "chat_messages", "allowed_emails"]) {
     try {
-      await rest<unknown>(`checking ${t}`, `${t}?select=id&limit=1`);
+      await rest<unknown>(`checking ${t}`, `${t}?select=${t === "allowed_emails" ? "email" : "id"}&limit=1`);
       out[t] = "ok";
     } catch (e) {
       out[t] = (e as Error).message.replace(/^Database error while checking \w+\. /, "");

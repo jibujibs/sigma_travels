@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ALL_NEEDS, isFullTrip, needsOf, type Intent, type Needs, type Recommendation, type TripBrief } from "../shared/types";
+import { AccountMenu } from "./components/AccountMenu";
 import { CopilotDrawer } from "./components/CopilotDrawer";
+import { HomeAirport } from "./components/HomeAirport";
 import { IdeaForm } from "./components/IdeaForm";
 import { MyTrips } from "./components/MyTrips";
 import { PlanView } from "./components/PlanView";
 import { Recommendations } from "./components/Recommendations";
-import { api, ApiError, type TripSummary } from "./lib/api";
+import { api, ApiError, type Profile, type TripSummary } from "./lib/api";
 import { copilotContext } from "./lib/context";
 import { getGuestId } from "./lib/guest";
 import { addDays, iso, todayUTC } from "./lib/format";
@@ -46,8 +48,20 @@ function loadBrief(): TripBrief {
 
 type Busy = { label: string; startedAt: number } | null;
 
-export default function App() {
-  const [brief, setBrief] = useState<TripBrief>(loadBrief);
+interface Props {
+  /** The signed-in traveller (Google account) with their saved home airport. */
+  user: Profile;
+  onSaveHomeAirport: (airport: string) => Promise<void>;
+  onSignOut: () => void;
+}
+
+export default function App({ user, onSaveHomeAirport, onSignOut }: Props) {
+  // "From" starts at the account's home airport; it can still be changed for a single search.
+  const [brief, setBrief] = useState<TripBrief>(() => {
+    const b = loadBrief();
+    return user.homeAirport ? { ...b, origin: user.homeAirport } : b;
+  });
+  const [editAirport, setEditAirport] = useState(false);
   const [recs, setRecs] = useState<Recommendation[] | null>(null);
   const [planState, setPlanState] = useState<PlanState | null>(null);
   const [model, setModel] = useState<string | undefined>();
@@ -245,8 +259,24 @@ export default function App() {
         <div className="top-actions">
           {tripsOn && <button className="btn" onClick={() => setShowTrips((v) => !v)} aria-expanded={showTrips}>My trips{trips.length ? ` (${trips.length})` : ""}</button>}
           <span className="demo">AI estimates · no real booking</span>
+          <AccountMenu user={user} onChangeAirport={() => setEditAirport(true)} onSignOut={onSignOut} />
         </div>
       </div>
+
+      {editAirport && (
+        <HomeAirport
+          name={user.name}
+          initial={user.homeAirport}
+          onCancel={() => setEditAirport(false)}
+          onSave={async (airport) => {
+            await onSaveHomeAirport(airport);
+            setBrief((b) => ({ ...b, origin: airport }));
+            setOriginError(undefined);
+            setEditAirport(false);
+            toast(`Home airport set to ${airport}`);
+          }}
+        />
+      )}
 
       {showTrips && tripsOn && <MyTrips trips={trips} busyId={tripBusy} onOpen={openTrip} onDelete={deleteTrip} onClose={() => setShowTrips(false)} />}
 

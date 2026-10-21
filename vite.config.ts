@@ -32,7 +32,7 @@ function localApi(): Plugin {
           const chunks: Buffer[] = [];
           for await (const chunk of req) chunks.push(chunk as Buffer);
           const headers = new Headers();
-          for (const h of ["content-type", "accept"]) {
+          for (const h of ["content-type", "accept", "authorization"]) {
             const v = req.headers[h];
             if (typeof v === "string") headers.set(h, v);
           }

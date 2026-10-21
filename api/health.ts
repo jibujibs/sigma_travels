@@ -1,5 +1,6 @@
 import { geminiKey, modelCandidates, thinkingFor } from "../server/gemini.js";
-import { json } from "../server/http.js";
+import { requireUser } from "../server/auth.js";
+import { HttpError, json } from "../server/http.js";
 import { checkTables, isSupabaseConfigured } from "../server/supabase.js";
 
 const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta";
@@ -8,11 +9,18 @@ const ENDPOINT = "https://generativelanguage.googleapis.com/v1beta";
  * GET /api/health            → is the server configured? (never returns the key)
  * GET /api/health?check=1    → also checks the Supabase tables, lists the Gemini models
  *                              this key can use and times a tiny test call to each model.
+ *                              It calls Gemini, so it needs a signed-in, approved user.
  */
 export async function GET(request: Request): Promise<Response> {
   const key = geminiKey();
   const base = { ok: true, gemini: Boolean(key), supabase: isSupabaseConfigured(), models: modelCandidates() };
   if (new URL(request.url).searchParams.get("check") !== "1") return json(base);
+  try {
+    await requireUser(request);
+  } catch (err) {
+    if (err instanceof HttpError) return json({ ...base, error: err.message }, err.status);
+    throw err;
+  }
   const tables = base.supabase ? await checkTables() : undefined;
   if (!key) return json({ ...base, ...(tables ? { tables } : {}) });
 
