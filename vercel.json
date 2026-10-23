@@ -30,6 +30,15 @@
     },
     "api/profile.ts": {
       "maxDuration": 30
+    },
+    "api/pnr.ts": {
+      "maxDuration": 30
+    },
+    "api/paylink.ts": {
+      "maxDuration": 30
+    },
+    "api/pay.ts": {
+      "maxDuration": 30
     }
   }
 }
