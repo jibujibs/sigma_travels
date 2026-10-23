@@ -36,12 +36,14 @@ export function PnrDesk({ agentName }: Props) {
   const [creating, setCreating] = useState(false);
   const [linkError, setLinkError] = useState<string>();
   const [copied, setCopied] = useState(false);
+  // "Make a new link" hides the current link (by URL) so a late status check can't bring it back.
+  const [dismissed, setDismissed] = useState<string>();
   const resultRef = useRef<HTMLDivElement>(null);
 
   const payment = data?.payment ?? null;
   const allChecked = checks.every(Boolean);
   const paid = !!data && (data.booking.paidInSabre || payment?.status === "paid");
-  const activeLink = payment && payment.status === "sent" ? payment : null;
+  const activeLink = payment && payment.status === "sent" && payment.url !== dismissed ? payment : null;
   const step = !data ? 0 : paid ? 5 : activeLink ? 4 : !verified ? 1 : !allChecked ? 2 : 3;
 
   async function search(code: string, e?: FormEvent) {
@@ -52,6 +54,7 @@ export function PnrDesk({ agentName }: Props) {
     setLoading(true);
     setError(undefined);
     setLinkError(undefined);
+    setDismissed(undefined);
     try {
       const r = await api.pnr.get(v);
       setData(r);
@@ -86,13 +89,15 @@ export function PnrDesk({ agentName }: Props) {
   const waitingFor = activeLink ? data?.booking.pnr : undefined;
   useEffect(() => {
     if (!waitingFor) return;
+    let stopped = false;
     const id = window.setInterval(async () => {
       try {
         const r = await api.pnr.get(waitingFor);
-        setData((d) => (d && d.booking.pnr === waitingFor ? { ...d, payment: r.payment } : d));
+        // Ignore an answer that arrives after the agent moved on (new link, other PNR).
+        if (!stopped) setData((d) => (d && d.booking.pnr === waitingFor ? { ...d, payment: r.payment } : d));
       } catch { /* keep the last known state */ }
     }, 4000);
-    return () => window.clearInterval(id);
+    return () => { stopped = true; window.clearInterval(id); };
   }, [waitingFor]);
 
   async function copy(url: string) {
@@ -201,7 +206,7 @@ export function PnrDesk({ agentName }: Props) {
               <PaidCard payment={payment} />
             ) : activeLink ? (
               <LinkCard payment={activeLink} agentName={agentName} lead={lead} copied={copied} onCopy={copy}
-                onNew={() => setData({ ...data, payment: { ...activeLink, status: "expired" } })} />
+                onNew={() => setDismissed(activeLink.url)} />
             ) : (
               <>
                 <section className={`side-card${verified ? "" : " locked"}`} aria-labelledby="chk-h">
