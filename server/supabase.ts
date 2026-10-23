@@ -123,6 +123,50 @@ export async function setHomeAirport(user: AuthUser, homeAirport: string): Promi
   return updated;
 }
 
+/* ---------- payment links (booking & payment flow) ---------- */
+
+export interface PaymentLinkRow {
+  id: string;
+  token: string;
+  pnr: string;
+  rail: "stripe" | "sabre";
+  status: "sent" | "paid" | "expired";
+  amount: number;
+  currency: string;
+  customer_email: string;
+  agent_email: string;
+  stripe_session_id: string | null;
+  reference: string | null;
+  paid_at: string | null;
+  expires_at: string;
+  created_at: string;
+}
+
+const LINK_COLS = "id,token,pnr,rail,status,amount,currency,customer_email,agent_email,stripe_session_id,reference,paid_at,expires_at,created_at";
+
+export async function latestPaymentLink(pnr: string): Promise<PaymentLinkRow | null> {
+  const rows = await rest<PaymentLinkRow[]>("loading the payment link", `payment_links?select=${LINK_COLS}&pnr=eq.${enc(pnr)}&order=created_at.desc&limit=1`);
+  return rows[0] ?? null;
+}
+
+export async function paymentLinkByToken(token: string): Promise<PaymentLinkRow | null> {
+  const rows = await rest<PaymentLinkRow[]>("loading the payment link", `payment_links?select=${LINK_COLS}&token=eq.${enc(token)}&limit=1`);
+  return rows[0] ?? null;
+}
+
+/** Creates a new link; any earlier unpaid link for the same PNR stops working, so a booking can't be paid twice. */
+export async function createPaymentLink(row: Omit<PaymentLinkRow, "id" | "status" | "stripe_session_id" | "reference" | "paid_at" | "created_at">): Promise<PaymentLinkRow> {
+  await rest<void>("closing the old link", `payment_links?pnr=eq.${enc(row.pnr)}&status=eq.sent`, { method: "PATCH", body: { status: "expired" }, prefer: "return=minimal" });
+  const rows = await rest<PaymentLinkRow[]>("creating the payment link", `payment_links?select=${LINK_COLS}`, { method: "POST", body: [row], prefer: "return=representation" });
+  return rows[0];
+}
+
+export async function updatePaymentLink(token: string, patch: Partial<PaymentLinkRow>, onlyIfStatus?: PaymentLinkRow["status"]): Promise<PaymentLinkRow | null> {
+  const filter = `token=eq.${enc(token)}${onlyIfStatus ? `&status=eq.${onlyIfStatus}` : ""}`;
+  const rows = await rest<PaymentLinkRow[]>("updating the payment link", `payment_links?${filter}&select=${LINK_COLS}`, { method: "PATCH", body: patch, prefer: "return=representation" });
+  return rows[0] ?? null;
+}
+
 /* ---------- trips (itineraries table) ---------- */
 
 export interface TripRow {
@@ -185,7 +229,7 @@ export function getChatHistory(userId: string, threadId: string, limit = 60): Pr
 /** Checks each table the app uses is reachable with the server key. Never returns the key. */
 export async function checkTables(): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
-  for (const t of ["users", "itineraries", "chat_messages", "allowed_emails"]) {
+  for (const t of ["users", "itineraries", "chat_messages", "allowed_emails", "payment_links"]) {
     try {
       await rest<unknown>(`checking ${t}`, `${t}?select=${t === "allowed_emails" ? "email" : "id"}&limit=1`);
       out[t] = "ok";

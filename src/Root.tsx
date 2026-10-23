@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import App from "./App";
+import { Workspace } from "./Workspace";
 import { LoadingScreen, NotApprovedScreen, NotConfiguredScreen, ProblemScreen, SignInScreen } from "./components/AuthScreens";
 import { HomeAirport } from "./components/HomeAirport";
 import { api, ApiError, type Profile } from "./lib/api";
@@ -57,5 +57,5 @@ export default function Root() {
     setState({ kind: "ready", user: { ...user, homeAirport: r.homeAirport } });
   };
   if (!user.homeAirport) return <HomeAirport name={user.name} onSave={saveAirport} />;
-  return <App user={user} onSaveHomeAirport={saveAirport} onSignOut={out} />;
+  return <Workspace user={user} onSaveHomeAirport={saveAirport} onSignOut={out} />;
 }

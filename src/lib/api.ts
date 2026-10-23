@@ -1,3 +1,4 @@
+import type { PaymentLink, PayRail, PayView, PnrResponse } from "../../shared/booking";
 import type { IntentResponse, PlanResponse, RecommendResponse, Recommendation, TripBrief, TripPlan } from "../../shared/types";
 import { dropSession, getAccessToken } from "./auth";
 import type { PlanState } from "./trip";
@@ -52,6 +53,16 @@ export interface ChatMsg { role: "user" | "assistant"; content: string }
 export interface Profile { email: string; name: string; avatar: string; homeAirport: string }
 
 export const api = {
+  pnr: {
+    get: (pnr: string) => request<PnrResponse>("GET", `/api/pnr?${q({ pnr })}`),
+    createLink: (pnr: string, rail: PayRail, email: string) => post<{ payment: PaymentLink }>("/api/paylink", { pnr, rail, email }),
+  },
+  pay: {
+    view: (token: string) => request<PayView>("GET", `/api/pay?${q({ token })}`),
+    checkout: (token: string) => post<{ url: string }>("/api/pay", { action: "checkout", token }),
+    confirm: (token: string, sessionId: string) => post<PayView>("/api/pay", { action: "confirm", token, sessionId }),
+    demoPay: (token: string, last4: string) => post<PayView>("/api/pay", { action: "demo-pay", token, last4 }),
+  },
   profile: {
     get: (guestId: string) => request<Profile>("GET", `/api/profile?${q({ guestId })}`),
     setHomeAirport: (homeAirport: string) => request<{ homeAirport: string }>("PUT", "/api/profile", { homeAirport }),

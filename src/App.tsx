@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { ALL_NEEDS, isFullTrip, needsOf, type Intent, type Needs, type Recommendation, type TripBrief } from "../shared/types";
 import { AccountMenu } from "./components/AccountMenu";
 import { CopilotDrawer } from "./components/CopilotDrawer";
@@ -53,9 +53,11 @@ interface Props {
   user: Profile;
   onSaveHomeAirport: (airport: string) => Promise<void>;
   onSignOut: () => void;
+  /** Section tabs shown in the header (booking desk / trip planner). */
+  nav?: ReactNode;
 }
 
-export default function App({ user, onSaveHomeAirport, onSignOut }: Props) {
+export default function App({ user, onSaveHomeAirport, onSignOut, nav }: Props) {
   // "From" starts at the account's home airport; it can still be changed for a single search.
   const [brief, setBrief] = useState<TripBrief>(() => {
     const b = loadBrief();
@@ -256,6 +258,7 @@ export default function App({ user, onSaveHomeAirport, onSignOut }: Props) {
     <div className="wrap">
       <div className="top">
         <div className="brand"><span className="logo">Σ</span>Sigma Travels · Trip Planner</div>
+        {nav}
         <div className="top-actions">
           {tripsOn && <button className="btn" onClick={() => setShowTrips((v) => !v)} aria-expanded={showTrips}>My trips{trips.length ? ` (${trips.length})` : ""}</button>}
           <span className="demo">AI estimates · no real booking</span>

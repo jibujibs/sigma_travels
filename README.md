@@ -5,7 +5,7 @@ Ask for exactly what you need: flights, a hotel, a rental car or a full trip pla
 **Stack:** React 19 + Vite 7 (frontend) · Vercel Functions in `api/` (backend) · Gemini REST API · Supabase database and Auth (REST API, no SDK) · pdf-lib (PDF in the browser)
 
 ```
-api/          Vercel Functions: intent, recommend, plan, trips, chat, profile, health, diag
+api/          Vercel Functions: intent, recommend, plan, trips, chat, profile, health, diag, pnr, paylink, pay
 server/       Gemini client, prompts, Copilot, Supabase client, sign-in check, error handling (server only)
 shared/       Types, request validation (zod), response normaliser
 src/          React app (sign-in, components, quote maths, PDF export)
@@ -58,6 +58,7 @@ The app reuses the tables from the original Sigma Travels migrations, plus one t
 | `allowed_emails` | the accounts allowed to use the app (lower-case emails) |
 | `itineraries` | **Save trip / My trips**: `criteria` = the form, `segments` = the Gemini plan plus the chosen flight/hotel/car, `total` = quote in INR |
 | `chat_messages` | Sigma Copilot history (`user` and `assistant` rows) |
+| `payment_links` | payment links for Sabre PNRs (see **Booking & payment**) |
 
 Row Level Security is on with no policies, so browsers can't read the tables; only the server, with the secret key, can. `/api/diag` checks that each table is reachable.
 
@@ -85,6 +86,46 @@ alter table public.allowed_emails enable row level security;
 **Setup:** Google Cloud → Google Auth Platform: a Web client with JavaScript origins `http://localhost:5173` and the Vercel URL, and redirect URI `https://<project>.supabase.co/auth/v1/callback`. While the app is in *Testing*, add each person under **Audience → Test users**. Supabase → Authentication → Sign In / Providers → Google: paste the client ID and secret; URL Configuration: Site URL = the Vercel URL, Redirect URLs = `http://localhost:5173/**` and `https://<your-app>.vercel.app/**`.
 
 **Give someone access:** add their email (lower case) to `allowed_emails` in the Supabase Table Editor, and to Google's test users while the app is in Testing.
+
+## Booking & payment (Agent Desk)
+
+The first page after sign-in is the **Agent Desk**; the AI planner is the second tab (`/planner`).
+
+1. The agent creates the PNR in Sabre, types it on the desk and presses **Search** (`GET /api/pnr`).
+2. The desk shows passengers, flights, fare, fare rules, contact and the ticketing deadline. The agent confirms the itinerary with the traveller and ticks **I've verified this itinerary**.
+3. The **checklist** (names vs passports, flights, amount, fare rules, deadline, contact) unlocks the payment card.
+4. The agent picks **Stripe** or **Sabre**, checks the customer email and presses **Generate payment link** (`POST /api/paylink`). The amount always comes from the booking on the server. The link (`/pay/<token>`) is shown with **Copy** and an email preview; it expires after 3 days or at the ticketing deadline, whichever is first, and a new link expires the old one.
+5. The customer opens the link (no sign-in), reviews the booking (passport numbers and contact details are hidden), ticks the confirmation and pays:
+   - **Stripe:** Stripe Checkout (Stripe's own page, so card details never reach our site). On return, `/api/pay` checks the session with Stripe and marks the link paid.
+   - **Sabre:** a demo card page until Sabre payment is connected. Only the last 4 digits are sent; no money is taken.
+6. The desk checks every few seconds and shows **Payment received** with the reference.
+
+**Sabre:** until Sabre API access is set up, the desk uses sample PNRs (`server/sabre-mock.ts`): `SGM7QX` (Kochi–Dubai, 2 adults), `TRV4LM` (Trivandrum–Singapore, family), `SFO2NY` (USD) and `PAID01` (already paid). `SABRE_MODE=live` is reserved for the real Sabre Booking Management API.
+
+**Environment variables:** `STRIPE_SECRET_KEY=sk_test_...` (Secret; without it, Stripe links fall back to the demo card page). Optional `SITE_URL=https://<your-app>.vercel.app` fixes the host used in payment links.
+
+**Table:**
+
+```sql
+create table public.payment_links (
+  id uuid primary key default gen_random_uuid(),
+  token text unique not null,
+  pnr text not null,
+  rail text not null check (rail in ('stripe','sabre')),
+  status text not null default 'sent' check (status in ('sent','paid','expired')),
+  amount numeric not null,
+  currency text not null,
+  customer_email text not null,
+  agent_email text not null,
+  stripe_session_id text,
+  reference text,
+  paid_at timestamptz,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now()
+);
+create index on public.payment_links (pnr, created_at desc);
+alter table public.payment_links enable row level security;
+```
 
 ## Only what you ask for
 
