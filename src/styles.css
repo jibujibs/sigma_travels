@@ -378,3 +378,9 @@ dl.fare .total dt{color:var(--ink)}
 .foot-wrap{padding-top:0}
 .pay-wrap .contact-foot{margin-top:8px}
 @media (max-width:640px){.contact-foot{grid-template-columns:1fr}}
+
+/* top bar: when brand, tabs and buttons don't fit on one line, the tabs take their own row */
+.demo-line{margin:-16px 0 0;display:flex;justify-content:flex-end}
+@media (max-width:1240px){.top > .tabs{order:3}}
+@media (max-width:640px){.top > .tabs a{flex:1}.demo-line{justify-content:flex-start;margin-top:-12px}}
+@media (max-width:640px){.brand-dot{display:none}.brand-sub{flex-basis:100%;padding-left:46px;font-size:18px}}

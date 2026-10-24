@@ -263,10 +263,11 @@ export default function App({ user, onSaveHomeAirport, onSignOut, nav, brand }: 
         {nav}
         <div className="top-actions">
           {tripsOn && <button className="btn" onClick={() => setShowTrips((v) => !v)} aria-expanded={showTrips}>My trips{trips.length ? ` (${trips.length})` : ""}</button>}
-          <span className="demo">AI estimates · no real booking</span>
+          {!nav && <span className="demo">AI estimates · no real booking</span>}
           <AccountMenu user={user} onChangeAirport={() => setEditAirport(true)} onSignOut={onSignOut} />
         </div>
       </div>
+      {nav && <p className="demo-line"><span className="demo">AI estimates · no real booking</span></p>}
 
       {editAirport && (
         <HomeAirport
