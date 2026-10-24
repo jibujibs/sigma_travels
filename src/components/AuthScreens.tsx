@@ -1,12 +1,13 @@
 import { useState, type ReactNode } from "react";
 import { signInWithGoogle } from "../lib/auth";
+import { Brand } from "./Brand";
 
 /** Full-page card used by every screen shown before the app itself. */
 function Gate({ children }: { children: ReactNode }) {
   return (
     <main className="gate">
       <div className="gate-card">
-        <div className="brand"><span className="logo">Σ</span>Sigma Travels · Trip Planner</div>
+        <Brand section="Trip Planner" />
         {children}
       </div>
     </main>

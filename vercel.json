@@ -39,6 +39,9 @@
     },
     "api/pay.ts": {
       "maxDuration": 30
+    },
+    "api/booking.ts": {
+      "maxDuration": 30
     }
   }
 }

@@ -1,4 +1,4 @@
-import type { PaymentLink, PayRail, PayView, PnrResponse } from "../../shared/booking";
+import type { ManageView, PaymentLink, PayRail, PayView, PnrResponse } from "../../shared/booking";
 import type { IntentResponse, PlanResponse, RecommendResponse, Recommendation, TripBrief, TripPlan } from "../../shared/types";
 import { dropSession, getAccessToken } from "./auth";
 import type { PlanState } from "./trip";
@@ -62,6 +62,9 @@ export const api = {
     checkout: (token: string) => post<{ url: string }>("/api/pay", { action: "checkout", token }),
     confirm: (token: string, sessionId: string) => post<PayView>("/api/pay", { action: "confirm", token, sessionId }),
     demoPay: (token: string, last4: string) => post<PayView>("/api/pay", { action: "demo-pay", token, last4 }),
+  },
+  booking: {
+    find: (pnr: string, email: string) => post<ManageView>("/api/booking", { pnr, email }),
   },
   profile: {
     get: (guestId: string) => request<Profile>("GET", `/api/profile?${q({ guestId })}`),

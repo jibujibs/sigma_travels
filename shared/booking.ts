@@ -75,3 +75,17 @@ export interface PayView {
   paidAt?: string;
   stripe: boolean;             // true = pays on Stripe's page; false = demo card page
 }
+
+/** What "Manage my booking" (Customer tab) shows after a PNR + email match. No passport digits or contact details. */
+export interface ManageView {
+  pnr: string;
+  passengers: { name: string; type: Passenger["type"] }[];
+  segments: Segment[];
+  fare: Fare;
+  ticketingDeadline: string;
+  /** due = not paid yet; paid = paid through our payment link; paid_in_sabre = already paid at the agency. */
+  status: "due" | "paid" | "paid_in_sabre";
+  /** An open payment link the customer can pay now (absent when none was sent, or it expired). */
+  payUrl?: string;
+  payment?: { rail: PayRail; reference?: string; paidAt?: string };
+}
