@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { AIRPORTS } from "../lib/airports";
+import { Brand } from "./Brand";
 
 interface Props {
   name: string;
@@ -34,7 +35,7 @@ export function HomeAirport({ name, initial = "", onSave, onCancel }: Props) {
   return (
     <div className={first ? "gate" : "modal-back"} role={first ? undefined : "dialog"} aria-modal={first ? undefined : true} aria-labelledby="home-h">
       <form className="gate-card" onSubmit={submit}>
-        {first && <div className="brand"><span className="logo">Σ</span>Sigma Travels · Trip Planner</div>}
+        {first && <Brand section="Trip Planner" />}
         <h1 id="home-h">{first ? `Welcome, ${name.split(" ")[0]}` : "Change home airport"}</h1>
         <p className="hint">
           {first ? "Where do you usually fly from? We'll fill it in for every search. You can still change it for a single trip." : "This becomes the starting point for your searches."}

@@ -55,9 +55,11 @@ interface Props {
   onSignOut: () => void;
   /** Section tabs shown in the header (booking desk / trip planner). */
   nav?: ReactNode;
+  /** Brand shown top-left; defaults to the planner's own name. */
+  brand?: ReactNode;
 }
 
-export default function App({ user, onSaveHomeAirport, onSignOut, nav }: Props) {
+export default function App({ user, onSaveHomeAirport, onSignOut, nav, brand }: Props) {
   // "From" starts at the account's home airport; it can still be changed for a single search.
   const [brief, setBrief] = useState<TripBrief>(() => {
     const b = loadBrief();
@@ -257,7 +259,7 @@ export default function App({ user, onSaveHomeAirport, onSignOut, nav }: Props) 
   return (
     <div className="wrap">
       <div className="top">
-        <div className="brand"><span className="logo">Σ</span>Sigma Travels · Trip Planner</div>
+        {brand ?? <div className="brand"><span className="logo">Σ</span>Sigma Travels · Trip Planner</div>}
         {nav}
         <div className="top-actions">
           {tripsOn && <button className="btn" onClick={() => setShowTrips((v) => !v)} aria-expanded={showTrips}>My trips{trips.length ? ` (${trips.length})` : ""}</button>}

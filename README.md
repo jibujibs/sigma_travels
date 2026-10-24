@@ -100,6 +100,12 @@ The first page after sign-in is the **Agent Desk**; the AI planner is the second
    - **Sabre:** a demo card page until Sabre payment is connected. Only the last 4 digits are sent; no money is taken.
 6. The desk checks every few seconds and shows **Payment received** with the reference.
 
+**Tabs:** the top bar has three tabs: **AGENT** (the desk above, `/`), **CUSTOMER** (`/customer`) and **AI Trip Planner** (`/planner`).
+
+**Customer tab, "Manage my booking":** the traveller enters their PNR and booking email (`POST /api/booking`, public). The email must match the booking's contact email or the email the payment link went to; a wrong PNR and a wrong email get the same "not found" answer. It shows flights, fare and payment status, with a **Pay** button when the agent has sent an open payment link. Passport digits and phone numbers are never returned.
+
+**Contact footer:** every page ends with the Sigma Travel & Tours contact details from sigmatravelplan.com (`src/components/ContactFooter.tsx`).
+
 **Sabre:** until Sabre API access is set up, the desk uses sample PNRs (`server/sabre-mock.ts`): `SGM7QX` (Kochi–Dubai, 2 adults), `TRV4LM` (Trivandrum–Singapore, family), `SFO2NY` (USD) and `PAID01` (already paid). `SABRE_MODE=live` is reserved for the real Sabre Booking Management API.
 
 **Environment variables:** `STRIPE_SECRET_KEY=sk_test_...` (Secret; without it, Stripe links fall back to the demo card page). Optional `SITE_URL=https://<your-app>.vercel.app` fixes the host used in payment links.

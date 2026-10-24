@@ -1,6 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { PayView } from "../../shared/booking";
 import { api } from "../lib/api";
+import { Brand } from "../components/Brand";
+import { ContactFooter } from "../components/ContactFooter";
 import { day, displayName, money, PAX_TYPE, time } from "../lib/booking-format";
 
 /** Luhn check, so a mistyped card number is caught on the demo card page. */
@@ -59,7 +61,7 @@ export function PayPage({ token }: { token: string }) {
   return (
     <div className="pay-wrap">
       <header className="pay-top">
-        <div className="brand"><span className="logo">Σ</span>Sigma Travels</div>
+        <Brand />
         <span className="secure">🔒 Secure payment</span>
       </header>
 
@@ -107,6 +109,7 @@ export function PayPage({ token }: { token: string }) {
           )}
         </section>
       )}
+      <ContactFooter />
     </div>
   );
 }
