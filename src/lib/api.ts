@@ -57,7 +57,7 @@ export const api = {
     get: (pnr: string) => request<PnrResponse>("GET", `/api/pnr?${q({ pnr })}`),
     createLink: (pnr: string, rail: PayRail, email: string) => post<{ payment: PaymentLink }>("/api/paylink", { pnr, rail, email }),
     /** Write the payment to the Sabre PNR ("record") or issue the tickets ("issue"). */
-    sabre: (pnr: string, action: "record" | "issue") => post<{ payment: PaymentLink }>("/api/ticket", { pnr, action }),
+    sabre: (pnr: string, action: "record" | "issue") => post<{ payment: PaymentLink }>("/api/pnr", { pnr, action }),
   },
   pay: {
     view: (token: string) => request<PayView>("GET", `/api/pay?${q({ token })}`),
