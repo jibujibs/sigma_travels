@@ -43,6 +43,7 @@ export const POST = handle(async (request) => {
     status,
     payUrl: status === "due" && row && linkStatus === "sent" ? `${originOf(request)}/pay/${row.token}` : undefined,
     payment: status === "paid" && row ? { rail: row.rail, reference: row.reference ?? undefined, paidAt: row.paid_at ?? undefined } : undefined,
+    tickets: status === "paid" && row?.ticket_numbers?.length ? row.ticket_numbers : undefined,
   };
   return json(view);
 });

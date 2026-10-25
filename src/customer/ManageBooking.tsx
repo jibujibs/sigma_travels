@@ -132,7 +132,16 @@ function BookingCard({ view, ref, onReset }: { view: ManageView; ref: Ref<HTMLEl
           </dl>
         )}
         {view.status === "paid_in_sabre" && <p className="hint">This booking was paid at the agency.</p>}
-        {view.status !== "due" && <p className="hint">Thank you. Your travel agent will issue your tickets and email them to you.</p>}
+        {view.tickets && view.tickets.length > 0 && (
+          <div className="mb-tickets">
+            <h3>Tickets issued</h3>
+            <table className="pax tickets">
+              <thead><tr><th>Passenger</th><th>Ticket number</th></tr></thead>
+              <tbody>{view.tickets.map((t) => <tr key={t.number}><td>{displayName(t.passenger)}</td><td className="mono">{t.number}</td></tr>)}</tbody>
+            </table>
+          </div>
+        )}
+        {view.status !== "due" && !view.tickets?.length && <p className="hint">Thank you. Your travel agent will issue your tickets and email them to you.</p>}
       </div>
 
       <button type="button" className="btn wide" onClick={onReset}>Look up another booking</button>

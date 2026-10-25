@@ -1,4 +1,5 @@
 import type { Booking, PaymentLink, PayView } from "../shared/booking.js";
+import { sabreMode } from "./sabre.js";
 import type { PaymentLinkRow } from "./supabase.js";
 
 /** A link stops working once paid, replaced, or past its expiry (set before the ticketing deadline). */
@@ -19,6 +20,17 @@ export function toPaymentLink(row: PaymentLinkRow, origin: string): PaymentLink 
     reference: row.reference ?? undefined,
     paidAt: row.paid_at ?? undefined,
     createdAt: row.created_at,
+    sabre: row.sabre_status
+      ? {
+          status: row.sabre_status,
+          mode: sabreMode() === "live" ? "live" : "demo",
+          remark: row.sabre_remark ?? undefined,
+          recordedAt: row.sabre_recorded_at ?? undefined,
+          error: row.sabre_error ?? undefined,
+        }
+      : undefined,
+    tickets: row.ticket_numbers ?? undefined,
+    ticketedAt: row.ticketed_at ?? undefined,
   };
 }
 

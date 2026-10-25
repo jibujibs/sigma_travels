@@ -42,6 +42,9 @@
     },
     "api/booking.ts": {
       "maxDuration": 30
+    },
+    "api/ticket.ts": {
+      "maxDuration": 30
     }
   }
 }

@@ -140,9 +140,17 @@ export interface PaymentLinkRow {
   paid_at: string | null;
   expires_at: string;
   created_at: string;
+  // Sabre step (columns added later; absent until the SQL in README is run)
+  sabre_status?: "recorded" | "failed" | null;
+  sabre_remark?: string | null;
+  sabre_recorded_at?: string | null;
+  sabre_error?: string | null;
+  ticket_numbers?: { passenger: string; number: string }[] | null;
+  ticketed_at?: string | null;
 }
 
-const LINK_COLS = "id,token,pnr,rail,status,amount,currency,customer_email,agent_email,stripe_session_id,reference,paid_at,expires_at,created_at";
+// "*" so the app keeps working before the Sabre columns are added.
+const LINK_COLS = "*";
 
 export async function latestPaymentLink(pnr: string): Promise<PaymentLinkRow | null> {
   const rows = await rest<PaymentLinkRow[]>("loading the payment link", `payment_links?select=${LINK_COLS}&pnr=eq.${enc(pnr)}&order=created_at.desc&limit=1`);

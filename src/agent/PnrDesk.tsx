@@ -14,7 +14,7 @@ const CHECKLIST = [
   "Customer email and phone number are correct",
 ];
 
-const STEPS = ["Find PNR", "Verify itinerary", "Checklist", "Payment link", "Customer pays"];
+const STEPS = ["Find PNR", "Verify itinerary", "Checklist", "Payment link", "Customer pays", "Ticket issued"];
 
 interface Props {
   agentName: string;
@@ -36,6 +36,8 @@ export function PnrDesk({ agentName }: Props) {
   const [creating, setCreating] = useState(false);
   const [linkError, setLinkError] = useState<string>();
   const [copied, setCopied] = useState(false);
+  const [sabreBusy, setSabreBusy] = useState<"record" | "issue">();
+  const [sabreError, setSabreError] = useState<string>();
   // "Make a new link" hides the current link (by URL) so a late status check can't bring it back.
   const [dismissed, setDismissed] = useState<string>();
   const resultRef = useRef<HTMLDivElement>(null);
@@ -44,7 +46,8 @@ export function PnrDesk({ agentName }: Props) {
   const allChecked = checks.every(Boolean);
   const paid = !!data && (data.booking.paidInSabre || payment?.status === "paid");
   const activeLink = payment && payment.status === "sent" && payment.url !== dismissed ? payment : null;
-  const step = !data ? 0 : paid ? 5 : activeLink ? 4 : !verified ? 1 : !allChecked ? 2 : 3;
+  const ticketed = !!payment?.ticketedAt;
+  const step = !data ? 0 : ticketed ? 6 : paid ? 5 : activeLink ? 4 : !verified ? 1 : !allChecked ? 2 : 3;
 
   async function search(code: string, e?: FormEvent) {
     e?.preventDefault();
@@ -55,6 +58,7 @@ export function PnrDesk({ agentName }: Props) {
     setError(undefined);
     setLinkError(undefined);
     setDismissed(undefined);
+    setSabreError(undefined);
     try {
       const r = await api.pnr.get(v);
       setData(r);
@@ -82,6 +86,21 @@ export function PnrDesk({ agentName }: Props) {
       setLinkError((err as Error).message);
     } finally {
       setCreating(false);
+    }
+  }
+
+  /** Write the payment to the Sabre PNR, or issue the tickets. */
+  async function sabreAction(action: "record" | "issue") {
+    if (!data) return;
+    setSabreBusy(action);
+    setSabreError(undefined);
+    try {
+      const r = await api.pnr.sabre(data.booking.pnr, action);
+      setData((d) => (d && d.booking.pnr === r.payment.pnr ? { ...d, payment: r.payment } : d));
+    } catch (err) {
+      setSabreError((err as Error).message);
+    } finally {
+      setSabreBusy(undefined);
     }
   }
 
@@ -203,7 +222,7 @@ export function PnrDesk({ agentName }: Props) {
                 <p className="hint">This PNR already has a form of payment. No payment link is needed; it can go straight to ticketing.</p>
               </section>
             ) : payment?.status === "paid" ? (
-              <PaidCard payment={payment} />
+              <PaidCard payment={payment} demo={data.sabreMode !== "live"} busy={sabreBusy} error={sabreError} onAction={sabreAction} />
             ) : activeLink ? (
               <LinkCard payment={activeLink} agentName={agentName} lead={lead} copied={copied} onCopy={copy}
                 onNew={() => setDismissed(activeLink.url)} />
@@ -278,9 +297,13 @@ function LinkCard({ payment, agentName, lead, copied, onCopy, onNew }: {
   );
 }
 
-function PaidCard({ payment }: { payment: PaymentLink }) {
+function PaidCard({ payment, demo, busy, error, onAction }: {
+  payment: PaymentLink; demo: boolean; busy?: "record" | "issue"; error?: string; onAction: (a: "record" | "issue") => void;
+}) {
+  const sabre = payment.sabre;
+  const tickets = payment.tickets ?? [];
   return (
-    <section className="side-card ok-card" aria-labelledby="paid-h" role="status">
+    <section className="side-card ok-card" aria-labelledby="paid-h">
       <h2 id="paid-h">✓ Payment received</h2>
       <dl className="fare">
         <div><dt>Amount</dt><dd className="mono">{money(payment.amount, payment.currency)}</dd></div>
@@ -288,8 +311,45 @@ function PaidCard({ payment }: { payment: PaymentLink }) {
         <div><dt>Reference</dt><dd className="mono small">{payment.reference}</dd></div>
         {payment.paidAt && <div><dt>Time</dt><dd>{new Date(payment.paidAt).toLocaleString()}</dd></div>}
       </dl>
-      <p className="hint">Next: write the payment remark to the PNR and issue the ticket in Sabre. This step is automated once Sabre API access is set up.</p>
-      <button className="btn wide" disabled title="Available once Sabre API access is set up">Issue ticket in Sabre</button>
+
+      <div className="sabre-step" role="status">
+        <h3>Sabre PNR</h3>
+        {sabre?.status === "recorded" ? (
+          <>
+            <p className="ok-text">✓ Payment recorded in the Sabre PNR{demo ? " (demo)" : ""}</p>
+            {sabre.remark && <p className="remark mono" aria-label="Remark written to the PNR">{sabre.remark}</p>}
+          </>
+        ) : sabre?.status === "failed" ? (
+          <>
+            <p className="warn-text">Couldn't record the payment in Sabre.</p>
+            {sabre.error && <p className="hint small">{sabre.error}</p>}
+            <button className="btn wide" disabled={!!busy} onClick={() => onAction("record")}>{busy === "record" ? "Trying again…" : "Try again"}</button>
+          </>
+        ) : (
+          <button className="btn wide" disabled={!!busy} onClick={() => onAction("record")}>{busy === "record" ? "Recording…" : "Record payment in Sabre PNR"}</button>
+        )}
+      </div>
+
+      <div className="sabre-step">
+        <h3>Tickets</h3>
+        {payment.ticketedAt ? (
+          <>
+            <p className="ok-text">✓ Tickets issued{demo ? " (demo)" : ""}</p>
+            <table className="pax tickets">
+              <thead><tr><th>Passenger</th><th>Ticket number</th></tr></thead>
+              <tbody>{tickets.map((t) => <tr key={t.number}><td className="mono">{t.passenger}</td><td className="mono">{t.number}</td></tr>)}</tbody>
+            </table>
+            <p className="hint small">Issued {new Date(payment.ticketedAt).toLocaleString()}</p>
+          </>
+        ) : (
+          <button className="btn solid wide" disabled={sabre?.status !== "recorded" || !!busy} onClick={() => onAction("issue")}>
+            {busy === "issue" ? "Issuing tickets…" : "Issue ticket in Sabre"}
+          </button>
+        )}
+      </div>
+
+      {error && <p className="err-text" role="alert">{error}</p>}
+      {demo && <p className="hint small">Demo mode: no real Sabre call is made until the agency's Sabre credentials are set up.</p>}
     </section>
   );
 }
