@@ -42,6 +42,21 @@ export interface Booking {
 export type PayRail = "stripe" | "sabre";
 export type LinkStatus = "sent" | "paid" | "expired";
 
+/** A ticket issued in Sabre for one passenger. */
+export interface Ticket {
+  passenger: string;      // "BIJU/AISWARYA MS"
+  number: string;         // 13 digits: airline code + serial, e.g. "1762401234567"
+}
+
+/** Whether the payment has been written into the Sabre PNR, so the agent can ticket. */
+export interface SabreRecord {
+  status: "recorded" | "failed";
+  mode: "demo" | "live";
+  remark?: string;        // the remark text written to the PNR
+  recordedAt?: string;
+  error?: string;
+}
+
 export interface PaymentLink {
   pnr: string;
   rail: PayRail;
@@ -53,6 +68,9 @@ export interface PaymentLink {
   reference?: string;     // Stripe payment id or demo reference once paid
   paidAt?: string;
   createdAt: string;
+  sabre?: SabreRecord;    // set once the payment has been (or failed to be) written to the Sabre PNR
+  tickets?: Ticket[];     // set once tickets are issued
+  ticketedAt?: string;
 }
 
 /** What the agent page gets for a PNR. */
@@ -61,6 +79,7 @@ export interface PnrResponse {
   source: "sabre" | "sample";
   payment: PaymentLink | null; // latest payment link for this PNR, if any
   stripeReady: boolean;        // a Stripe test/live key is set on the server
+  sabreMode: "live" | "sample"; // sample = Sabre calls are simulated (no credentials yet)
 }
 
 /** What the public customer page gets: no agent-only details. */
@@ -88,4 +107,5 @@ export interface ManageView {
   /** An open payment link the customer can pay now (absent when none was sent, or it expired). */
   payUrl?: string;
   payment?: { rail: PayRail; reference?: string; paidAt?: string };
+  tickets?: Ticket[];
 }

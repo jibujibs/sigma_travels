@@ -3,6 +3,7 @@ import { handle, HttpError, json, parseBody } from "../server/http.js";
 import { effectiveStatus, originOf, toPayView } from "../server/payments.js";
 import { getBooking } from "../server/sabre.js";
 import { createCheckout, getCheckout, stripeReady } from "../server/stripe.js";
+import { syncPaymentToSabre } from "../server/sabre-sync.js";
 import { paymentLinkByToken, updatePaymentLink, type PaymentLinkRow } from "../server/supabase.js";
 
 /**
@@ -62,6 +63,7 @@ export const POST = handle(async (request) => {
     if (s.payment_status !== "paid") return json(view); // not paid (yet): the page keeps the Pay button
     const paid = await updatePaymentLink(row.token, { status: "paid", reference: s.payment_intent ?? s.id, paid_at: new Date().toISOString(), stripe_session_id: s.id }, "sent");
     if (!paid) console.warn(`[pay] ${row.pnr} was already marked paid`);
+    else await syncPaymentToSabre(paid); // write the payment into the Sabre PNR so the agent can ticket
     return json((await load(row.token)).view);
   }
 
@@ -69,6 +71,7 @@ export const POST = handle(async (request) => {
   mustBeOpen(row);
   if (view.stripe) throw new HttpError(400, "This link is paid on Stripe's page.");
   const ref = `DEMO-${row.rail.toUpperCase()}-${Date.now().toString(36).toUpperCase()}-${body.last4}`;
-  await updatePaymentLink(row.token, { status: "paid", reference: ref, paid_at: new Date().toISOString() }, "sent");
+  const paid = await updatePaymentLink(row.token, { status: "paid", reference: ref, paid_at: new Date().toISOString() }, "sent");
+  if (paid) await syncPaymentToSabre(paid);
   return json((await load(row.token)).view);
 });

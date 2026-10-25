@@ -104,6 +104,18 @@ The first page after sign-in is the **Agent Desk**; the AI planner is the second
 
 **Customer tab, "Manage my booking":** the traveller enters their PNR and booking email (`POST /api/booking`, public). The email must match the booking's contact email or the email the payment link went to; a wrong PNR and a wrong email get the same "not found" answer. It shows flights, fare and payment status, with a **Pay** button when the agent has sent an open payment link. Passport digits and phone numbers are never returned.
 
+**Payment to Sabre and ticketing:** after a customer pays (Stripe or Sabre), the server writes a payment remark to the Sabre PNR (`server/sabre-sync.ts`), so the agent sees in Sabre that the booking is paid. The Agent Desk shows the remark and enables **Issue ticket in Sabre** (`POST /api/ticket`), which issues one ticket per passenger; the customer sees the ticket numbers on the Customer tab. Until Sabre credentials are set up this runs in demo mode: nothing is sent to Sabre and ticket numbers are made up. It needs these columns:
+
+```sql
+alter table public.payment_links
+  add column if not exists sabre_status text check (sabre_status in ('recorded','failed')),
+  add column if not exists sabre_remark text,
+  add column if not exists sabre_recorded_at timestamptz,
+  add column if not exists sabre_error text,
+  add column if not exists ticket_numbers jsonb,
+  add column if not exists ticketed_at timestamptz;
+```
+
 **Contact footer:** every page ends with the Sigma Travel & Tours contact details from sigmatravelplan.com (`src/components/ContactFooter.tsx`).
 
 **Sabre:** until Sabre API access is set up, the desk uses sample PNRs (`server/sabre-mock.ts`): `SGM7QX` (Kochi–Dubai, 2 adults), `TRV4LM` (Trivandrum–Singapore, family), `SFO2NY` (USD) and `PAID01` (already paid). `SABRE_MODE=live` is reserved for the real Sabre Booking Management API.
