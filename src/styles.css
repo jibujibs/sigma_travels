@@ -341,10 +341,22 @@ dl.fare .total dt{color:var(--ink)}
 @media (max-width:640px){.brand{font-size:22px}.logo{width:36px;height:36px;font-size:20px}}
 
 /* brand: company name leads, section name lighter */
-.brand-name{white-space:nowrap}
+/* Top bar of the three tabs: "Sigma Travels" is the largest text on the page (bigger than the 40px page headings) */
+.brand-name{white-space:nowrap;line-height:1.05;letter-spacing:-.02em}
+.brand .logo{flex:none}
+.top .brand-name{font-size:clamp(34px,4vw,48px)}
+.top .brand .logo{width:56px;height:56px;border-radius:14px;font-size:32px}
+/* Cards (sign-in, home airport) and the payment page: 36px so it fits; in cards the section name goes on its own line */
+.gate-card .brand-name,.pay-top .brand-name{font-size:36px}
+.gate-card .brand .logo,.pay-top .brand .logo{width:48px;height:48px;border-radius:12px;font-size:28px}
+.gate-card .brand{flex-wrap:wrap;row-gap:2px}
+.gate-card .brand-dot{display:none}
+.gate-card .brand-sub{flex-basis:100%;padding-left:58px;font-size:20px}
+.pay-top{flex-wrap:wrap}
+.pay-top .brand{flex-wrap:nowrap}
 .brand-dot{color:var(--teal);margin:0 -2px}
-.brand-sub{font-weight:600;color:var(--muted);white-space:nowrap}
-@media (max-width:640px){.brand{flex-wrap:wrap;row-gap:2px}}
+.brand-sub{font-weight:600;color:var(--muted);white-space:nowrap;font-size:22px}
+@media (max-width:640px){.brand{flex-wrap:wrap;row-gap:2px}.top .brand-name,.pay-top .brand-name{font-size:32px}.gate-card .brand-name{font-size:30px}.brand .logo,.top .brand .logo,.gate-card .brand .logo,.pay-top .brand .logo{width:44px;height:44px;border-radius:12px;font-size:26px}.gate-card .brand-sub{padding-left:54px;font-size:18px}}
 
 /* three section tabs with icons */
 .tabs a{display:inline-flex;align-items:center;justify-content:center;gap:7px}
@@ -381,9 +393,9 @@ dl.fare .total dt{color:var(--ink)}
 
 /* top bar: when brand, tabs and buttons don't fit on one line, the tabs take their own row */
 .demo-line{margin:-16px 0 0;display:flex;justify-content:flex-end}
-@media (max-width:1240px){.top > .tabs{order:3}}
+@media (max-width:1280px){.top > .tabs{order:3}}
 @media (max-width:640px){.top > .tabs a{flex:1}.demo-line{justify-content:flex-start;margin-top:-12px}}
-@media (max-width:640px){.brand-dot{display:none}.brand-sub{flex-basis:100%;padding-left:46px;font-size:18px}}
+@media (max-width:640px){.brand-dot{display:none}.brand-sub{flex-basis:100%;padding-left:54px;font-size:18px}}
 
 /* Sabre step on the paid card: payment remark + tickets */
 .sabre-step{display:grid;gap:8px;border-top:1px dashed var(--line);padding-top:12px}
