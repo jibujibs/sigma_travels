@@ -158,7 +158,15 @@ The **AGENT** tab shows **Voice requests** (`GET /api/voice`, refreshed every 30
 
 **Trip details (phase B):** the same Gemini call also reads the trip the customer asked for: from/to (city + airport code), depart/return dates (worked out from "next month 15th", "a week later" against the message date), one way, adults/children/infants, class, preferred airline, budget and notes. Nothing is guessed: whatever wasn't said shows under **Still to ask** (worked out from the fields, so it stays right after an edit). On the Agent tab each message shows a **Trip details** box: **✏ Edit** (`PATCH /api/voice { action: "save-trip" }`, marked *Edited*), **Read again / Read trip details** for older messages (`{ action: "read-trip" }`, reads the English text) and **Open in AI Trip Planner** (fills From, destination, dates, days and travellers on the planner tab; Sunny presses Search). The email also carries the trip line and what is still to ask. Saved in the `trip` jsonb column; until it exists the inbox still works and the box says to run the SQL.
 
-**Setup:** run `supabase/voice_requests.sql` in the Supabase SQL Editor (creates the table and the bucket). Environment variables (server, Secret): `RESEND_API_KEY`, `NOTIFY_EMAIL` (comma-separated for several). Optional `EMAIL_FROM` once a domain is verified in Resend; until then mail comes from `onboarding@resend.dev` and Resend only delivers it to the Resend account's own address.
+**Real flights (phase C):** each message has a **Flights** box with real fares from Google Flights through SerpApi (`server/flights.ts`, `SERPAPI_API_KEY`; free plan 250 searches a month, one per search, one per "Choose return"). The app finds and compares; Sunny decides:
+- **Automatic search** right after the voice is read, only when the customer clearly said where from, where to (a city with an airport) and an exact date that doesn't need confirming. Otherwise the box says what to confirm first. From is never guessed (no home airport, no default).
+- **Search form** filled from the trip, all editable: From and To (typed and picked from the airport list; up to 3 From airports separated by commas), dates or one way, adults/children/infants, class, stops (`{ action: "flights-search" }`).
+- **Results:** Google's order, cheapest, fastest or departure time; nonstop only; one airline. **⭐ Suggested** marks the cheapest, the fastest, the customer's airline and Google's best pick, with the reason (simple rules, no AI call). Prices are Google's, in ₹, for all travellers (whole trip for a return search).
+- **Return trips:** **Choose return →** loads the matching return flights (`{ action: "flights-return" }`).
+- **Sunny's options** (shown above the results): **+ Add** up to 5, **Remove**, **📋 Copy for customer** (text for WhatsApp/email), **Open in Google Flights** (`{ action: "flights-save" }`). Nothing is sent to the customer and nothing is booked; Sunny books in Sabre as usual.
+- Saved in the `flights` jsonb column with the last search, so reopening doesn't spend another search. The email adds "Flights: N found, cheapest ₹…".
+
+**Setup:** run `supabase/voice_requests.sql` in the Supabase SQL Editor (creates the table and the bucket). Environment variables (server, Secret): `RESEND_API_KEY`, `NOTIFY_EMAIL` (comma-separated for several), `SERPAPI_API_KEY` (flights). Optional `EMAIL_FROM` once a domain is verified in Resend; until then mail comes from `onboarding@resend.dev` and Resend only delivers it to the Resend account's own address.
 
 **Functions:** the Vercel Hobby plan allows 12. `/api/diag` is now a rewrite to `/api/health?check=1` (in `vercel.json` and `vite.config.ts`), which freed the slot for `api/voice.ts`.
 
@@ -180,6 +188,6 @@ The **Sigma Copilot** button opens a side chat. Each question is sent to `/api/c
 - **Timeouts:** the AI routes may run for up to 300 s (`maxDuration` in `vercel.json`, which is the Hobby limit with Fluid compute). The server asks Gemini for minimal "thinking", moves on to the next model if one gives no answer within 90 s, and stops at 280 s with a readable message.
 - **Diagnostics:** open `/api/health?check=1` to see which Gemini models your key can use, plus the status and response time of a tiny test call to each model the app tries.
 
-- Flights, hotels and prices are Gemini's estimates from general knowledge, not live inventory. The app and the PDF both say so.
+- In the AI Trip Planner, flights, hotels and prices are Gemini's estimates from general knowledge, not live inventory. The app and the PDF both say so.
 - The PDF is generated in the browser. Text the standard PDF fonts can't show (₹, some non-Latin scripts) is converted: ₹ becomes "Rs".
 - Run `npm run typecheck` for a full TypeScript check. The Vercel build (`vite build`) doesn't type-check.

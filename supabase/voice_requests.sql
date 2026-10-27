@@ -29,3 +29,6 @@ alter table public.voice_requests add column if not exists trip jsonb;
 insert into storage.buckets (id, name, public)
 values ('voice-messages', 'voice-messages', false)
 on conflict (id) do nothing;
+
+-- Phase C: real flights (Google Flights via SerpApi) and Sunny's chosen options.
+alter table public.voice_requests add column if not exists flights jsonb;

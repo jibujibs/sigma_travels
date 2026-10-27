@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { VOICE_STATUSES, type VoiceRequest, type VoiceStatus, type VoiceTrip } from "../../shared/voice";
 import { api } from "../lib/api";
+import { VoiceFlights } from "./VoiceFlights";
 import { VoiceTripBox } from "./VoiceTripBox";
 
 const STATUS_LABEL: Record<VoiceStatus, string> = { new: "New", contacted: "Contacted", ticketed: "Ticketed", closed: "Closed" };
@@ -117,6 +118,9 @@ export function VoiceInbox({ onOpenPlanner }: { onOpenPlanner: (trip: VoiceTrip,
             )}
 
             {!v.processing && <VoiceTripBox v={v} onOpenPlanner={(trip) => onOpenPlanner(trip, v.name)}
+              onChange={(r) => setItems((xs) => xs?.map((x) => (x.id === r.id ? r : x)) ?? null)} />}
+
+            {!v.processing && v.english && <VoiceFlights key={`${v.id}:${JSON.stringify(v.trip)}`} v={v}
               onChange={(r) => setItems((xs) => xs?.map((x) => (x.id === r.id ? r : x)) ?? null)} />}
 
             <div className="vi-actions">
