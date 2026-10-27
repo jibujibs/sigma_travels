@@ -45,7 +45,7 @@
       "maxDuration": 30
     },
     "api/voice.ts": {
-      "maxDuration": 120
+      "maxDuration": 300
     }
   }
 }

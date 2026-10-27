@@ -465,3 +465,6 @@ table.tickets td,table.tickets th{padding:6px}
 .vt-fields .vt-check input{width:auto;min-height:0;flex:none}
 @media (max-width:900px){.vt-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.vt-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media (max-width:480px){.vt-fields{grid-template-columns:1fr}.vt-fields .vt-wide{grid-column:auto}.vt-grid{grid-template-columns:1fr 1fr}}
+.vi-processing{margin:0;display:flex;align-items:center;gap:10px;color:var(--teal);font-weight:600}
+.vi-failed{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.vi-failed p{margin:0}

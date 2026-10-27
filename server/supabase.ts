@@ -300,6 +300,20 @@ export async function uploadAudio(path: string, bytes: Buffer, mime: string): Pr
   }
 }
 
+/** Reads a recording back (to retry the voice → text step). */
+export async function downloadAudio(path: string): Promise<Buffer> {
+  const cfg = supabaseConfig();
+  if (!cfg) throw new HttpError(503, "Voice messages need Supabase.");
+  let res: Response;
+  try {
+    res = await fetch(`${cfg.url}/storage/v1/object/${VOICE_BUCKET}/${path}`, { headers: headers(cfg), signal: AbortSignal.timeout(20_000) });
+  } catch {
+    throw new DatabaseError("reading the recording", "Couldn't reach Supabase Storage.");
+  }
+  if (!res.ok) throw new DatabaseError("reading the recording", `(${res.status})`);
+  return Buffer.from(await res.arrayBuffer());
+}
+
 /** A short-lived link Sunny's browser can play. Null if signing fails (the inbox still shows the text). */
 export async function signedAudioUrl(path: string, seconds = 3600): Promise<string | null> {
   const cfg = supabaseConfig();

@@ -47,6 +47,8 @@ export interface VoiceRequest {
   status: VoiceStatus;
   /** Set when transcription failed; the recording is still saved. */
   error?: string;
+  /** True while the voice is still being turned into text (it runs after the customer is told "sent"). */
+  processing: boolean;
   /** Trip details read from the message (null: none described, or not read yet). */
   trip: VoiceTrip | null;
   /** False when the trip column hasn't been added in Supabase yet (run supabase/voice_requests.sql). */
@@ -125,6 +127,7 @@ export function normalizeTrip(raw: unknown, edited = false): VoiceTrip | null {
 export const voicePatchSchema = z.union([
   z.object({ id: z.string().uuid(), status: z.enum(["new", "contacted", "ticketed", "closed"]) }),
   z.object({ id: z.string().uuid(), action: z.literal("read-trip") }),
+  z.object({ id: z.string().uuid(), action: z.literal("retry") }),
   z.object({ id: z.string().uuid(), action: z.literal("save-trip"), trip: z.record(z.unknown()) }),
 ]);
 

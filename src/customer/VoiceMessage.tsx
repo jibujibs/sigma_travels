@@ -125,7 +125,7 @@ export function VoiceMessage() {
       <div>
         <p className="eyebrow">Voice message</p>
         <h2 id="vm-h">Planning a new trip? Tell Sunny</h2>
-        <p className="hint">Record a message of up to 3 minutes: where you want to go, when, how many people and anything else. You can speak English, Malayalam, Hindi or any language. Sunny will call you back with flight options.</p>
+        <p className="hint">Record a message of up to 3 minutes: where you want to go, when, how many people and anything else. Sunny will call you back with flight options.</p>
       </div>
 
       <form className="voice-form" onSubmit={send} noValidate>
@@ -162,7 +162,7 @@ export function VoiceMessage() {
 
         {error && <p className="err-text" role="alert">{error}</p>}
         {(phase === "recorded" || phase === "sending") && (
-          <button className="btn solid big send-btn" type="submit" disabled={busy}>{busy ? "Sending… (turning your voice into text)" : "Send to Sunny"}</button>
+          <button className="btn solid big send-btn" type="submit" disabled={busy}>{busy ? "Sending…" : "Send to Sunny"}</button>
         )}
       </form>
     </section>

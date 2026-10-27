@@ -149,7 +149,7 @@ alter table public.payment_links enable row level security;
 
 The **CUSTOMER** tab has a **Voice message** card: the customer gives their name and a phone number or email, records up to 3 minutes (browser microphone; WebM/Opus on Chrome, MP4/AAC on Safari and iPhone), listens back and presses **Send to Sunny**.
 
-`POST /api/voice` then:
+`POST /api/voice` saves the recording and answers at once, so the customer sees "Message sent" in a second or two; the rest runs in the background (`waitUntil` from `@vercel/functions`). The Agent tab shows **Turning the voice into text…** for those few seconds (and checks every 4 s), then the text and trip appear by themselves. If it fails, or hasn't finished after 3 minutes, the message shows **Try again** (`PATCH /api/voice { action: "retry" }`, which re-reads the saved recording; no second email). The steps:
 1. stores the recording in the private Supabase Storage bucket `voice-messages` and a row in `voice_requests`;
 2. sends the audio to Gemini (`server/voice.ts`, same `GEMINI_API_KEY`), which returns the language, the words as spoken and an English version. Speech uses the stronger Flash models first (`gemini-3.8-flash`, then `gemini-3.7-flash`; Lite only as fallback when their free limits run out), because Lite mishears mixed Malayalam/English. Optional `GEMINI_VOICE_MODEL` puts another model first;
 3. emails a notification through Resend (`server/email.ts`) to `NOTIFY_EMAIL`. A failed transcription or email never loses the message.
