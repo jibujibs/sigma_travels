@@ -1,6 +1,7 @@
 import type { ManageView, PaymentLink, PayRail, PayView, PnrResponse } from "../../shared/booking";
 import type { IntentResponse, PlanResponse, RecommendResponse, Recommendation, TripBrief, TripPlan } from "../../shared/types";
 import type { VoiceRequest, VoiceStatus, VoiceTrip } from "../../shared/voice";
+import type { FlightOption, FlightQuery, ShortlistItem } from "../../shared/flights";
 import { dropSession, getAccessToken } from "./auth";
 import type { PlanState } from "./trip";
 
@@ -77,6 +78,9 @@ export const api = {
     saveTrip: (id: string, trip: VoiceTrip) => request<{ request: VoiceRequest }>("PATCH", "/api/voice", { id, action: "save-trip", trip }),
     readTrip: (id: string) => request<{ request: VoiceRequest }>("PATCH", "/api/voice", { id, action: "read-trip" }),
     retry: (id: string) => request<{ request: VoiceRequest }>("PATCH", "/api/voice", { id, action: "retry" }),
+    searchFlights: (id: string, query: FlightQuery) => request<{ request: VoiceRequest }>("PATCH", "/api/voice", { id, action: "flights-search", query }),
+    returnFlights: (id: string, query: FlightQuery, token: string) => request<{ returns: FlightOption[] }>("PATCH", "/api/voice", { id, action: "flights-return", query, token }),
+    saveShortlist: (id: string, shortlist: ShortlistItem[]) => request<{ request: VoiceRequest }>("PATCH", "/api/voice", { id, action: "flights-save", shortlist }),
   },
   profile: {
     get: (guestId: string) => request<Profile>("GET", `/api/profile?${q({ guestId })}`),

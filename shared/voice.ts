@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { flightQuerySchema, SHORTLIST_MAX, type VoiceFlights } from "./flights.js";
 
 /** Longest voice message a customer can record. */
 export const VOICE_MAX_SECONDS = 180;
@@ -53,6 +54,10 @@ export interface VoiceRequest {
   trip: VoiceTrip | null;
   /** False when the trip column hasn't been added in Supabase yet (run supabase/voice_requests.sql). */
   tripSaved: boolean;
+  /** Real flights found for this message and Sunny's shortlist (phase C). */
+  flights: VoiceFlights | null;
+  /** False when the flights column hasn't been added in Supabase yet. */
+  flightsSaved: boolean;
 }
 
 /* ---------- trip details read from the message (phase B) ---------- */
@@ -145,6 +150,9 @@ export const voicePatchSchema = z.union([
   z.object({ id: z.string().uuid(), action: z.literal("read-trip") }),
   z.object({ id: z.string().uuid(), action: z.literal("retry") }),
   z.object({ id: z.string().uuid(), action: z.literal("save-trip"), trip: z.record(z.unknown()) }),
+  z.object({ id: z.string().uuid(), action: z.literal("flights-search"), query: flightQuerySchema }),
+  z.object({ id: z.string().uuid(), action: z.literal("flights-return"), query: flightQuerySchema, token: z.string().min(10).max(4000) }),
+  z.object({ id: z.string().uuid(), action: z.literal("flights-save"), shortlist: z.array(z.record(z.unknown())).max(SHORTLIST_MAX, `Up to ${SHORTLIST_MAX} options per customer.`) }),
 ]);
 
 /** "Kochi (COK)" for a place, as the airport suggestions show it. */

@@ -253,6 +253,8 @@ export interface VoiceRow {
   submitted_by: string | null;
   /** Phase B column (absent until `alter table … add column trip jsonb` is run). */
   trip?: unknown;
+  /** Phase C column (absent until `alter table … add column flights jsonb` is run). */
+  flights?: unknown;
 }
 
 /** True when PostgREST says a column doesn't exist yet (the SQL for a new feature hasn't been run). */

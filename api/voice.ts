@@ -4,7 +4,9 @@ import { sendEmail } from "../server/email.js";
 import { handle, HttpError, json, parseBody } from "../server/http.js";
 import { originOf } from "../server/payments.js";
 import { downloadAudio, insertVoice, isMissingColumn, listVoice, signedAudioUrl, updateVoice, uploadAudio, voiceById, type VoiceRow } from "../server/supabase.js";
+import { flightsConfigured, returnFlights, searchFlights } from "../server/flights.js";
 import { readTrip, transcribe } from "../server/voice.js";
+import { autoSearchBlockers, queryFromTrip, rupees, type ShortlistItem, type VoiceFlights } from "../shared/flights.js";
 import { normalizeTrip, tripLine, withDateCheck, voicePatchSchema, voiceSubmitSchema, type VoiceRequest, type VoiceTrip } from "../shared/voice.js";
 
 /**
@@ -15,6 +17,9 @@ import { normalizeTrip, tripLine, withDateCheck, voicePatchSchema, voiceSubmitSc
  *   PATCH /api/voice  { id, action: "save-trip", trip }            Sunny corrects the trip details
  *   PATCH /api/voice  { id, action: "read-trip" }                  Gemini reads the trip from the text again
  *   PATCH /api/voice  { id, action: "retry" }                      voice → text again from the saved recording
+ *   PATCH /api/voice  { id, action: "flights-search", query }       real flights (Google Flights via SerpApi)
+ *   PATCH /api/voice  { id, action: "flights-return", query, token } return flights for one outbound flight
+ *   PATCH /api/voice  { id, action: "flights-save", shortlist }      Sunny's chosen options
  * The customer is told "sent" as soon as the recording is saved; voice → text → trip → email then runs
  * in the background (waitUntil), and the Agent tab shows "Turning the voice into text…" meanwhile.
  * Sign-in is required for now, like the rest of the site (demo); the Customer tab can be opened up later.
@@ -22,6 +27,26 @@ import { normalizeTrip, tripLine, withDateCheck, voicePatchSchema, voiceSubmitSc
  */
 
 const extOf = (mime: string) => (/webm/.test(mime) ? "webm" : /ogg/.test(mime) ? "ogg" : /mp4|m4a|aac/.test(mime) ? "m4a" : /mpeg|mp3/.test(mime) ? "mp3" : /wav/.test(mime) ? "wav" : "audio");
+
+const FLIGHTS_SQL = "Run this in the Supabase SQL Editor: alter table public.voice_requests add column if not exists flights jsonb;";
+const today = () => new Date().toISOString().slice(0, 10);
+
+/** Stored flights, or null (rows from before phase C, or before the flights column exists). */
+const flightsOf = (r: VoiceRow): VoiceFlights | null => {
+  const f = r.flights as VoiceFlights | null | undefined;
+  return f && typeof f === "object" ? { search: f.search ?? null, shortlist: Array.isArray(f.shortlist) ? f.shortlist : [], ...(f.note ? { note: f.note } : {}) } : null;
+};
+
+/** Saves the flights; null when the flights column hasn't been added yet. */
+async function saveFlights(id: string, flights: VoiceFlights): Promise<VoiceRow | null> {
+  try {
+    return await updateVoice(id, { flights });
+  } catch (e) {
+    if (!isMissingColumn(e, "flights")) throw e;
+    console.warn("[voice] flights column missing; " + FLIGHTS_SQL);
+    return null;
+  }
+}
 
 const TRIP_SQL = "Run supabase/voice_requests.sql again in the Supabase SQL Editor (it adds the trip column).";
 
@@ -49,6 +74,8 @@ async function toView(r: VoiceRow): Promise<VoiceRequest> {
     processing: isProcessing(r),
     trip: withDateCheck(tripOf(r), r.created_at),
     tripSaved: "trip" in r,
+    flights: flightsOf(r),
+    flightsSaved: "flights" in r,
   };
 }
 
@@ -80,6 +107,7 @@ async function processVoice(row: VoiceRow, audio: string, mime: string, origin: 
     const error = `Couldn't turn the voice into text: ${reason}`;
     row = (await updateVoice(row.id, { error }).catch(() => null)) ?? { ...row, error };
   }
+  row = await autoFlights(row, trip);
   if (!notify) return row;
 
   // Tell us by email. Best effort: the message is already in Sunny's inbox.
@@ -90,12 +118,40 @@ async function processVoice(row: VoiceRow, audio: string, mime: string, origin: 
       `${row.name} left a ${mins} voice message on Sigma Travels.`,
       [row.phone && `Phone: ${row.phone}`, row.email && `Email: ${row.email}`].filter(Boolean).join("\n"),
       row.transcript_en ? `What they said${row.language && row.language !== "English" ? ` (translated from ${row.language})` : ""}:\n"${row.transcript_en}"` : row.error ?? "The message couldn't be turned into text; listen to it on the Agent Desk.",
+      flightLine(row),
       trip ? `Trip: ${tripLine(trip)}${trip.budget ? `\nBudget: ${trip.budget}` : ""}${trip.notes ? `\nNotes: ${trip.notes}` : ""}\nStill to ask: ${trip.missing.join(", ") || "nothing"}` : "",
     ].filter(Boolean),
     `${origin}/`,
   );
   if (!mail.ok) console.warn(`[voice] email not sent: ${mail.reason}`);
   return row;
+}
+
+/**
+ * After the voice is read: search real flights by itself, but only when the customer clearly said from, to
+ * (a city with an airport) and an exact date. Never throws; a failure is noted for Sunny, who can search himself.
+ */
+async function autoFlights(row: VoiceRow, trip: VoiceTrip | null): Promise<VoiceRow> {
+  if (!flightsConfigured() || !trip || autoSearchBlockers(trip, today()).length) return row;
+  const existing = flightsOf(row);
+  if (existing?.search) return row; // searched before (e.g. Try again): don't spend another search
+  let flights: VoiceFlights;
+  try {
+    flights = { search: await searchFlights(queryFromTrip(trip, today()), true), shortlist: existing?.shortlist ?? [] };
+  } catch (e) {
+    const reason = e instanceof Error ? e.message : String(e);
+    console.warn(`[voice] automatic flight search failed for ${row.id}: ${reason}`);
+    flights = { search: null, shortlist: existing?.shortlist ?? [], note: `The automatic flight search didn't work: ${reason}` };
+  }
+  return (await saveFlights(row.id, flights).catch(() => null)) ?? row;
+}
+
+/** One email line about the flights found, e.g. "Flights: 34 found on Google Flights, cheapest ₹27,900 (IndiGo)". */
+function flightLine(row: VoiceRow): string {
+  const s = flightsOf(row)?.search;
+  if (!s) return "";
+  const cheapest = s.options.filter((o) => o.price != null).sort((a, b) => a.price! - b.price!)[0];
+  return s.options.length ? `Flights: ${s.options.length} found on Google Flights${cheapest ? `, cheapest ${rupees(cheapest.price)} (${cheapest.airline})` : ""}. Open the Agent Desk to compare and choose.` : "Flights: none found on Google Flights for these details.";
 }
 
 export const POST = handle(async (request) => {
@@ -141,6 +197,24 @@ export const PATCH = handle(async (request) => {
     const audio = (await downloadAudio(current.audio_path)).toString("base64");
     await updateVoice(current.id, { error: null });
     row = await processVoice({ ...current, error: null }, audio, current.audio_mime, originOf(request), false);
+  } else if (body.action === "flights-search") {
+    const current = await voiceById(body.id);
+    if (!current) throw new HttpError(404, "That voice message wasn't found.");
+    if (body.query.depart < today()) throw new HttpError(400, "The departure date has passed. Choose a future date.");
+    const search = await searchFlights(body.query);
+    const flights: VoiceFlights = { search, shortlist: flightsOf(current)?.shortlist ?? [] };
+    row = await saveFlights(body.id, flights);
+    // Column missing: still show the results, they just aren't kept.
+    if (!row) return json({ request: { ...(await toView(current)), flights, flightsSaved: false } });
+  } else if (body.action === "flights-return") {
+    if (!(await voiceById(body.id))) throw new HttpError(404, "That voice message wasn't found.");
+    return json({ returns: await returnFlights(body.query, body.token) });
+  } else if (body.action === "flights-save") {
+    const current = await voiceById(body.id);
+    if (!current) throw new HttpError(404, "That voice message wasn't found.");
+    const flights: VoiceFlights = { search: flightsOf(current)?.search ?? null, shortlist: body.shortlist as unknown as ShortlistItem[] };
+    row = await saveFlights(body.id, flights);
+    if (!row) throw new HttpError(503, `Sunny's options can't be saved yet. ${FLIGHTS_SQL}`);
   } else {
     const current = await voiceById(body.id);
     if (!current) throw new HttpError(404, "That voice message wasn't found.");
