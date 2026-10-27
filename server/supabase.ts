@@ -251,7 +251,13 @@ export interface VoiceRow {
   status: "new" | "contacted" | "ticketed" | "closed";
   error: string | null;
   submitted_by: string | null;
+  /** Phase B column (absent until `alter table … add column trip jsonb` is run). */
+  trip?: unknown;
 }
+
+/** True when PostgREST says a column doesn't exist yet (the SQL for a new feature hasn't been run). */
+export const isMissingColumn = (e: unknown, column: string) =>
+  e instanceof Error && new RegExp(`'${column}' column|column .*${column}.* does not exist|PGRST204`, "i").test(e.message);
 
 export async function insertVoice(row: Pick<VoiceRow, "name" | "phone" | "email" | "audio_path" | "audio_mime" | "seconds" | "submitted_by">): Promise<VoiceRow> {
   const rows = await rest<VoiceRow[]>("saving the voice message", "voice_requests?select=*", { method: "POST", body: [row], prefer: "return=representation" });
@@ -260,6 +266,11 @@ export async function insertVoice(row: Pick<VoiceRow, "name" | "phone" | "email"
 
 export async function updateVoice(id: string, patch: Partial<VoiceRow>): Promise<VoiceRow | null> {
   const rows = await rest<VoiceRow[]>("updating the voice message", `voice_requests?id=eq.${enc(id)}&select=*`, { method: "PATCH", body: patch, prefer: "return=representation" });
+  return rows[0] ?? null;
+}
+
+export async function voiceById(id: string): Promise<VoiceRow | null> {
+  const rows = await rest<VoiceRow[]>("loading the voice message", `voice_requests?select=*&id=eq.${enc(id)}&limit=1`);
   return rows[0] ?? null;
 }
 

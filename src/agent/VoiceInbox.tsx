@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { VOICE_STATUSES, type VoiceRequest, type VoiceStatus } from "../../shared/voice";
+import { VOICE_STATUSES, type VoiceRequest, type VoiceStatus, type VoiceTrip } from "../../shared/voice";
 import { api } from "../lib/api";
+import { VoiceTripBox } from "./VoiceTripBox";
 
 const STATUS_LABEL: Record<VoiceStatus, string> = { new: "New", contacted: "Contacted", ticketed: "Ticketed", closed: "Closed" };
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -11,7 +12,7 @@ const tel = (p: string) => `tel:${p.replace(/[^\d+]/g, "")}`;
  * Agent tab: voice messages customers left for Sunny, newest first.
  * Listen, read what they said (with an English version), call or email them back, and track the status.
  */
-export function VoiceInbox() {
+export function VoiceInbox({ onOpenPlanner }: { onOpenPlanner: (trip: VoiceTrip, from: string) => void }) {
   const [items, setItems] = useState<VoiceRequest[] | null>(null);
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(false);
@@ -94,6 +95,9 @@ export function VoiceInbox() {
             ) : (
               <p className="warn-text small">{v.error ?? "No text yet."}{v.audioUrl ? " Listen to the recording above." : ""}</p>
             )}
+
+            <VoiceTripBox v={v} onOpenPlanner={(trip) => onOpenPlanner(trip, v.name)}
+              onChange={(r) => setItems((xs) => xs?.map((x) => (x.id === r.id ? r : x)) ?? null)} />
 
             <div className="vi-actions">
               {v.phone && <a className="btn solid" href={tel(v.phone)}>📞 Call {v.phone}</a>}

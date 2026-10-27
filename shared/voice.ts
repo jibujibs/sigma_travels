@@ -27,6 +27,7 @@ export const voiceStatusSchema = z.object({
   status: z.enum(["new", "contacted", "ticketed", "closed"]),
 });
 
+
 /** One voice request as Sunny sees it in the Agent inbox. */
 export interface VoiceRequest {
   id: string;
@@ -46,4 +47,96 @@ export interface VoiceRequest {
   status: VoiceStatus;
   /** Set when transcription failed; the recording is still saved. */
   error?: string;
+  /** Trip details read from the message (null: none described, or not read yet). */
+  trip: VoiceTrip | null;
+  /** False when the trip column hasn't been added in Supabase yet (run supabase/voice_requests.sql). */
+  tripSaved: boolean;
+}
+
+/* ---------- trip details read from the message (phase B) ---------- */
+
+export interface TripPlace { city: string; airport: string }
+
+/** What the customer asked for, as understood from the message (and corrected by Sunny). Empty strings / 0 = not mentioned. */
+export interface VoiceTrip {
+  from: TripPlace | null;
+  to: TripPlace | null;
+  /** YYYY-MM-DD */
+  depart: string;
+  /** YYYY-MM-DD; "" for one-way or not mentioned */
+  return: string;
+  oneWay: boolean;
+  adults: number;
+  children: number;
+  infants: number;
+  cabin: string;    // Economy, Premium economy, Business, First, or ""
+  airline: string;  // preferred airline, e.g. "Emirates", or ""
+  budget: string;   // e.g. "under ₹50,000 per person", or ""
+  /** Anything else Sunny should know (hotel, flexible dates, visa…). */
+  notes: string;
+  /** What Sunny still has to ask; worked out from the fields above, never guessed. */
+  missing: string[];
+  /** True once Sunny has edited and saved it. */
+  edited?: boolean;
+}
+
+export const CABINS = ["Economy", "Premium economy", "Business", "First"];
+
+const isoDay = /^\d{4}-\d{2}-\d{2}$/;
+const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+const count = (v: unknown, max: number) => { const n = Math.round(Number(v)); return Number.isFinite(n) && n > 0 ? Math.min(n, max) : 0; };
+const place = (v: unknown): TripPlace | null => {
+  const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
+  const city = str(o.city).slice(0, 60);
+  const airport = str(o.airport).replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase();
+  return city ? { city, airport: airport.length === 3 ? airport : "" } : null;
+};
+const cabinOf = (v: unknown) => CABINS.find((c) => c.toLowerCase() === str(v).toLowerCase()) ?? "";
+
+/** What the agent still has to ask the customer, from the fields alone (so it is always right after an edit). */
+export function missingFor(t: Pick<VoiceTrip, "from" | "to" | "depart" | "return" | "oneWay" | "adults" | "children">): string[] {
+  return [
+    !t.from && "departure city",
+    !t.to && "destination",
+    !t.depart && "travel date",
+    !t.return && !t.oneWay && "return date",
+    t.adults + t.children === 0 && "number of travellers",
+  ].filter((x): x is string => Boolean(x));
+}
+
+/** Gemini's JSON (or Sunny's edit) is untrusted: coerce it into a VoiceTrip, or null when no trip was described at all. */
+export function normalizeTrip(raw: unknown, edited = false): VoiceTrip | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const depart = isoDay.test(str(r.depart)) ? str(r.depart) : "";
+  let ret = isoDay.test(str(r.return)) ? str(r.return) : "";
+  if (ret && depart && ret < depart) ret = "";
+  const base = {
+    from: place(r.from), to: place(r.to), depart, return: ret,
+    oneWay: r.oneWay === true && !ret,
+    adults: count(r.adults, 9), children: count(r.children, 9), infants: count(r.infants, 9),
+    cabin: cabinOf(r.cabin), airline: str(r.airline).slice(0, 40), budget: str(r.budget).slice(0, 80), notes: str(r.notes).slice(0, 400),
+  };
+  if (!base.to && !base.from && !base.depart) return null;
+  return { ...base, missing: missingFor(base), ...(edited ? { edited: true } : {}) };
+}
+
+/** Sunny's actions on one message (PATCH /api/voice). */
+export const voicePatchSchema = z.union([
+  z.object({ id: z.string().uuid(), status: z.enum(["new", "contacted", "ticketed", "closed"]) }),
+  z.object({ id: z.string().uuid(), action: z.literal("read-trip") }),
+  z.object({ id: z.string().uuid(), action: z.literal("save-trip"), trip: z.record(z.unknown()) }),
+]);
+
+/** "Kochi (COK)" for a place, as the airport suggestions show it. */
+export const placeLabel = (p: TripPlace | null) => (p ? (p.airport ? `${p.city} (${p.airport})` : p.city) : "");
+
+/** One line for emails and lists, e.g. "Kochi → Dubai · 15–22 Nov · 2 adults · Business · Emirates". */
+export function tripLine(t: VoiceTrip): string {
+  const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const d = (iso: string) => `${Number(iso.slice(8, 10))} ${MON[Number(iso.slice(5, 7)) - 1]}`;
+  const people = [t.adults && `${t.adults} adult${t.adults > 1 ? "s" : ""}`, t.children && `${t.children} child${t.children > 1 ? "ren" : ""}`, t.infants && `${t.infants} infant${t.infants > 1 ? "s" : ""}`].filter(Boolean).join(", ");
+  const sameMonth = t.return && t.return.slice(0, 7) === t.depart.slice(0, 7);
+  const dates = t.depart ? (t.return ? `${sameMonth ? Number(t.depart.slice(8, 10)) : d(t.depart)}–${d(t.return)}` : `${d(t.depart)}${t.oneWay ? " (one way)" : ""}`) : "";
+  return [`${t.from?.city ?? "?"} → ${t.to?.city ?? "?"}`, dates, people, t.cabin, t.airline].filter(Boolean).join(" · ");
 }

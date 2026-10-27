@@ -1,6 +1,6 @@
 import type { ManageView, PaymentLink, PayRail, PayView, PnrResponse } from "../../shared/booking";
 import type { IntentResponse, PlanResponse, RecommendResponse, Recommendation, TripBrief, TripPlan } from "../../shared/types";
-import type { VoiceRequest, VoiceStatus } from "../../shared/voice";
+import type { VoiceRequest, VoiceStatus, VoiceTrip } from "../../shared/voice";
 import { dropSession, getAccessToken } from "./auth";
 import type { PlanState } from "./trip";
 
@@ -74,6 +74,8 @@ export const api = {
       post<{ id: string; emailed: boolean }>("/api/voice", m),
     list: () => request<{ requests: VoiceRequest[] }>("GET", "/api/voice"),
     setStatus: (id: string, status: VoiceStatus) => request<{ request: VoiceRequest }>("PATCH", "/api/voice", { id, status }),
+    saveTrip: (id: string, trip: VoiceTrip) => request<{ request: VoiceRequest }>("PATCH", "/api/voice", { id, action: "save-trip", trip }),
+    readTrip: (id: string) => request<{ request: VoiceRequest }>("PATCH", "/api/voice", { id, action: "read-trip" }),
   },
   profile: {
     get: (guestId: string) => request<Profile>("GET", `/api/profile?${q({ guestId })}`),

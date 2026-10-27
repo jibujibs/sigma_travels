@@ -11,6 +11,7 @@ import { api, ApiError, type Profile, type TripSummary } from "./lib/api";
 import { copilotContext } from "./lib/context";
 import { getGuestId } from "./lib/guest";
 import { addDays, iso, todayUTC } from "./lib/format";
+import { briefFromTrip, clearPlannerPrefill, peekPlannerPrefill } from "./lib/plannerPrefill";
 import { downloadTripPdf } from "./lib/pdf";
 import { bestReturn, needsList, planNeeds, price, tripLength, type PlanState } from "./lib/trip";
 
@@ -61,10 +62,15 @@ interface Props {
 
 export default function App({ user, onSaveHomeAirport, onSignOut, nav, brand }: Props) {
   // "From" starts at the account's home airport; it can still be changed for a single search.
+  // "Open in AI Trip Planner" from a voice message fills the form once.
+  const [prefill] = useState(peekPlannerPrefill);
+  useEffect(() => { if (prefill) clearPlannerPrefill(); }, [prefill]);
   const [brief, setBrief] = useState<TripBrief>(() => {
     const b = loadBrief();
-    return user.homeAirport ? { ...b, origin: user.homeAirport } : b;
+    const home = user.homeAirport ? { ...b, origin: user.homeAirport } : b;
+    return prefill ? briefFromTrip(home, prefill.trip, iso(todayUTC())) : home;
   });
+  const [prefillNote, setPrefillNote] = useState(prefill ? `Filled in from ${prefill.from}'s voice message. Check the details, then press Search.` : "");
   const [editAirport, setEditAirport] = useState(false);
   const [recs, setRecs] = useState<Recommendation[] | null>(null);
   const [planState, setPlanState] = useState<PlanState | null>(null);
@@ -282,6 +288,13 @@ export default function App({ user, onSaveHomeAirport, onSignOut, nav, brand }: 
             toast(`Home airport set to ${airport}`);
           }}
         />
+      )}
+
+      {prefillNote && (
+        <div className="status" role="status">
+          <div className="msg"><span>🎤 {prefillNote}</span></div>
+          <button className="btn" onClick={() => setPrefillNote("")}>Dismiss</button>
+        </div>
       )}
 
       {showTrips && tripsOn && <MyTrips trips={trips} busyId={tripBusy} onOpen={openTrip} onDelete={deleteTrip} onClose={() => setShowTrips(false)} />}
