@@ -94,7 +94,7 @@ export interface InlineFile { mimeType: string; data: string }
 
 export async function generateJson(
   prompt: string,
-  opts: { maxOutputTokens?: number; temperature?: number; label?: string; files?: InlineFile[] } = {},
+  opts: { maxOutputTokens?: number; temperature?: number; label?: string; files?: InlineFile[]; prefer?: string[]; preferAttemptMs?: number } = {},
 ): Promise<{ data: unknown; model: string }> {
   const key = geminiKey();
   if (!key) throw new HttpError(503, "GEMINI_API_KEY is not set on the server. Add it to .env.local (local) or Vercel → Settings → Environment Variables.");
@@ -108,7 +108,9 @@ export async function generateJson(
   let lastError = "";
   let rateLimited = 0;
 
-  for (const model of modelCandidates()) {
+  // `prefer` puts stronger models first for harder jobs (e.g. hearing speech); the usual list follows as fallback.
+  const models = [...new Set([...(opts.prefer ?? []), ...modelCandidates()])];
+  for (const model of models) {
     // Ask for minimal "thinking" so answers come back fast. If a model rejects the
     // setting, retry the same model once without it.
     attempts: for (const thinking of [thinkingFor(model), undefined]) {
@@ -120,7 +122,8 @@ export async function generateJson(
         res = await fetch(`${ENDPOINT}/${encodeURIComponent(model)}:generateContent`, {
           method: "POST",
           headers: { "content-type": "application/json", "x-goog-api-key": key },
-          signal: AbortSignal.timeout(Math.min(remaining, attemptCap)),
+          // A preferred model gets a shorter wait when the caller asks (voice), so a hanging one doesn't hold everything up.
+          signal: AbortSignal.timeout(Math.min(remaining, opts.prefer?.includes(model) && opts.preferAttemptMs ? opts.preferAttemptMs : attemptCap)),
           body: JSON.stringify({
             contents: [{ role: "user", parts: [
               ...(opts.files ?? []).map((f) => ({ inline_data: { mime_type: f.mimeType, data: f.data } })),

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { VOICE_STATUSES, type VoiceRequest, type VoiceStatus } from "../../shared/voice";
+import { VOICE_STATUSES, type VoiceRequest, type VoiceStatus, type VoiceTrip } from "../../shared/voice";
 import { api } from "../lib/api";
+import { VoiceTripBox } from "./VoiceTripBox";
 
 const STATUS_LABEL: Record<VoiceStatus, string> = { new: "New", contacted: "Contacted", ticketed: "Ticketed", closed: "Closed" };
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -11,7 +12,7 @@ const tel = (p: string) => `tel:${p.replace(/[^\d+]/g, "")}`;
  * Agent tab: voice messages customers left for Sunny, newest first.
  * Listen, read what they said (with an English version), call or email them back, and track the status.
  */
-export function VoiceInbox() {
+export function VoiceInbox({ onOpenPlanner }: { onOpenPlanner: (trip: VoiceTrip, from: string) => void }) {
   const [items, setItems] = useState<VoiceRequest[] | null>(null);
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(false);
@@ -30,12 +31,27 @@ export function VoiceInbox() {
     }
   }, []);
 
-  // Load now, then look for new messages every 30 seconds.
+  // Load now, then look for new messages every 30 seconds, or every 4 seconds while a voice is being turned into text.
+  const busyText = items?.some((x) => x.processing) ?? false;
+  useEffect(() => { void load(); }, [load]);
   useEffect(() => {
-    void load();
-    const id = window.setInterval(() => void load(true), 30_000);
+    const id = window.setInterval(() => void load(true), busyText ? 4_000 : 30_000);
     return () => window.clearInterval(id);
-  }, [load]);
+  }, [load, busyText]);
+
+  async function retry(id: string) {
+    setSaving(id);
+    setItems((xs) => xs?.map((x) => (x.id === id ? { ...x, processing: true, error: undefined } : x)) ?? null);
+    try {
+      const { request } = await api.voice.retry(id);
+      setItems((xs) => xs?.map((x) => (x.id === id ? request : x)) ?? null);
+    } catch (e) {
+      setError((e as Error).message);
+      void load(true);
+    } finally {
+      setSaving(undefined);
+    }
+  }
 
   async function setStatus(id: string, status: VoiceStatus) {
     setSaving(id);
@@ -84,7 +100,9 @@ export function VoiceInbox() {
             {v.audioUrl ? <audio className="rec-audio" controls preload="none" src={v.audioUrl} aria-label={`Recording from ${v.name}`} />
               : <p className="hint small">The recording can't be played right now.</p>}
 
-            {v.english ? (
+            {v.processing ? (
+              <p className="vi-processing" role="status"><span className="spin" aria-hidden="true" /> Turning the voice into text… You can listen to it already.</p>
+            ) : v.english ? (
               <blockquote className="vi-text">
                 <p>{v.english}</p>
                 {v.transcript && v.transcript !== v.english && (
@@ -92,8 +110,14 @@ export function VoiceInbox() {
                 )}
               </blockquote>
             ) : (
-              <p className="warn-text small">{v.error ?? "No text yet."}{v.audioUrl ? " Listen to the recording above." : ""}</p>
+              <div className="vi-failed">
+                <p className="warn-text small">{v.error ?? "No text yet."}{v.audioUrl ? " Listen to the recording above." : ""}</p>
+                <button className="btn small-btn" onClick={() => void retry(v.id)} disabled={saving === v.id}>{saving === v.id ? "Trying again…" : "Try again"}</button>
+              </div>
             )}
+
+            {!v.processing && <VoiceTripBox v={v} onOpenPlanner={(trip) => onOpenPlanner(trip, v.name)}
+              onChange={(r) => setItems((xs) => xs?.map((x) => (x.id === r.id ? r : x)) ?? null)} />}
 
             <div className="vi-actions">
               {v.phone && <a className="btn solid" href={tel(v.phone)}>📞 Call {v.phone}</a>}

@@ -149,12 +149,14 @@ alter table public.payment_links enable row level security;
 
 The **CUSTOMER** tab has a **Voice message** card: the customer gives their name and a phone number or email, records up to 3 minutes (browser microphone; WebM/Opus on Chrome, MP4/AAC on Safari and iPhone), listens back and presses **Send to Sunny**.
 
-`POST /api/voice` then:
+`POST /api/voice` saves the recording and answers at once, so the customer sees "Message sent" in a second or two; the rest runs in the background (`waitUntil` from `@vercel/functions`). The Agent tab shows **Turning the voice into text…** for those few seconds (and checks every 4 s), then the text and trip appear by themselves. If it fails, or hasn't finished after 3 minutes, the message shows **Try again** (`PATCH /api/voice { action: "retry" }`, which re-reads the saved recording; no second email). The steps:
 1. stores the recording in the private Supabase Storage bucket `voice-messages` and a row in `voice_requests`;
-2. sends the audio to Gemini (`server/voice.ts`, same `GEMINI_API_KEY`), which returns the language, the words as spoken and an English version;
+2. sends the audio to Gemini (`server/voice.ts`, same `GEMINI_API_KEY`), which returns the language, the words as spoken and an English version. Speech uses the stronger Flash models first (`gemini-3.8-flash`, then `gemini-3.7-flash`; Lite only as fallback when their free limits run out), because Lite mishears mixed Malayalam/English. Optional `GEMINI_VOICE_MODEL` puts another model first;
 3. emails a notification through Resend (`server/email.ts`) to `NOTIFY_EMAIL`. A failed transcription or email never loses the message.
 
 The **AGENT** tab shows **Voice requests** (`GET /api/voice`, refreshed every 30 s): play the recording (signed link, 1 hour), read the English text (and the original), **Call** / **Email** the customer, and set the status (New, Contacted, Ticketed, Closed; `PATCH /api/voice`). Sign-in is required for now, like the rest of the site.
+
+**Trip details (phase B):** the same Gemini call also reads the trip the customer asked for: from/to (city + airport code), depart/return dates (worked out from "next month 15th", "a week later" against the message date), one way, adults/children/infants, class, preferred airline, budget and notes. Nothing is guessed: whatever wasn't said shows under **Still to ask** (worked out from the fields, so it stays right after an edit). On the Agent tab each message shows a **Trip details** box: **✏ Edit** (`PATCH /api/voice { action: "save-trip" }`, marked *Edited*), **Read again / Read trip details** for older messages (`{ action: "read-trip" }`, reads the English text) and **Open in AI Trip Planner** (fills From, destination, dates, days and travellers on the planner tab; Sunny presses Search). The email also carries the trip line and what is still to ask. Saved in the `trip` jsonb column; until it exists the inbox still works and the box says to run the SQL.
 
 **Setup:** run `supabase/voice_requests.sql` in the Supabase SQL Editor (creates the table and the bucket). Environment variables (server, Secret): `RESEND_API_KEY`, `NOTIFY_EMAIL` (comma-separated for several). Optional `EMAIL_FROM` once a domain is verified in Resend; until then mail comes from `onboarding@resend.dev` and Resend only delivers it to the Resend account's own address.
 

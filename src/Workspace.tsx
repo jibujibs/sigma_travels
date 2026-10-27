@@ -4,6 +4,7 @@ import { PnrDesk } from "./agent/PnrDesk";
 import { ManageBooking } from "./customer/ManageBooking";
 import { VoiceMessage } from "./customer/VoiceMessage";
 import { VoiceInbox } from "./agent/VoiceInbox";
+import { setPlannerPrefill } from "./lib/plannerPrefill";
 import { AccountMenu } from "./components/AccountMenu";
 import { Brand } from "./components/Brand";
 import { ContactFooter } from "./components/ContactFooter";
@@ -84,7 +85,7 @@ export function Workspace({ user, onSaveHomeAirport, onSignOut }: Props) {
           onSave={async (a) => { await onSaveHomeAirport(a); setEditAirport(false); }} />
       )}
       {view === "agent"
-        ? <><PnrDesk agentName={user.name} /><VoiceInbox /></>
+        ? <><PnrDesk agentName={user.name} /><VoiceInbox onOpenPlanner={(trip, from) => { setPlannerPrefill({ trip, from }); go("planner"); }} /></>
         : <><ManageBooking /><VoiceMessage /></>}
       <ContactFooter />
     </div>

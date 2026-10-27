@@ -1,6 +1,6 @@
 import type { ManageView, PaymentLink, PayRail, PayView, PnrResponse } from "../../shared/booking";
 import type { IntentResponse, PlanResponse, RecommendResponse, Recommendation, TripBrief, TripPlan } from "../../shared/types";
-import type { VoiceRequest, VoiceStatus } from "../../shared/voice";
+import type { VoiceRequest, VoiceStatus, VoiceTrip } from "../../shared/voice";
 import { dropSession, getAccessToken } from "./auth";
 import type { PlanState } from "./trip";
 
@@ -71,9 +71,12 @@ export const api = {
   },
   voice: {
     send: (m: { name: string; phone: string; email: string; audio: string; mime: string; seconds: number }) =>
-      post<{ id: string; emailed: boolean }>("/api/voice", m),
+      post<{ id: string }>("/api/voice", m),
     list: () => request<{ requests: VoiceRequest[] }>("GET", "/api/voice"),
     setStatus: (id: string, status: VoiceStatus) => request<{ request: VoiceRequest }>("PATCH", "/api/voice", { id, status }),
+    saveTrip: (id: string, trip: VoiceTrip) => request<{ request: VoiceRequest }>("PATCH", "/api/voice", { id, action: "save-trip", trip }),
+    readTrip: (id: string) => request<{ request: VoiceRequest }>("PATCH", "/api/voice", { id, action: "read-trip" }),
+    retry: (id: string) => request<{ request: VoiceRequest }>("PATCH", "/api/voice", { id, action: "retry" }),
   },
   profile: {
     get: (guestId: string) => request<Profile>("GET", `/api/profile?${q({ guestId })}`),

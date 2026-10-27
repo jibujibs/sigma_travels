@@ -22,6 +22,9 @@ create index if not exists voice_requests_created_idx on public.voice_requests (
 -- Browsers can't read the table; only the server (secret key) can.
 alter table public.voice_requests enable row level security;
 
+-- Phase B: trip details read from the message (and corrected by Sunny).
+alter table public.voice_requests add column if not exists trip jsonb;
+
 -- Private bucket for the recordings (played through short-lived signed links).
 insert into storage.buckets (id, name, public)
 values ('voice-messages', 'voice-messages', false)
