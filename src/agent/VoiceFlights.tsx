@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from "react";
 import {
-  autoSearchBlockers, CABIN_OPTIONS, dayShift, hm, KERALA, queryFromTrip, rupees, SHORTLIST_MAX, shortlistText, stopsOf, suggestions,
+  autoSearchBlockers, CABIN_OPTIONS, dayShift, hm, queryFromTrip, rupees, SHORTLIST_MAX, shortlistText, stopsOf, suggestions,
   timeOnly, travellers, niceTime, type FlightOption, type FlightQuery, type ShortlistItem,
 } from "../../shared/flights";
 import type { VoiceRequest } from "../../shared/voice";
@@ -8,7 +8,6 @@ import { api } from "../lib/api";
 import { AIRPORTS } from "../lib/airports";
 
 type Sort = "best" | "price" | "duration" | "depart";
-const QUICK_FROM = ["COK", "TRV", "CCJ", "DFW"];
 const PAGE = 12;
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
@@ -74,8 +73,8 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
   async function runSearch(e?: FormEvent) {
     e?.preventDefault();
     const q: FlightQuery = { from: codesOf(from), to: codesOf(to).split(",")[0] ?? "", depart, return: oneWay ? "" : ret, adults, children, infants, cabin, stops };
-    const problem = !q.from ? "Choose where they fly from: an airport such as Kochi (COK), or press a quick button."
-      : !q.to ? "Choose where they fly to: an airport such as Dubai (DXB)."
+    const problem = !q.from ? "Choose where they fly from: type the city and pick its airport from the list."
+      : !q.to ? "Choose where they fly to: type the city and pick its airport from the list."
       : !q.depart ? "Choose the departure date."
       : q.depart < today ? "The departure date has passed."
       : !oneWay && !q.return ? "Choose the return date, or tick One way."
@@ -143,14 +142,10 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
       <form className="vf-form" onSubmit={(e) => void runSearch(e)} noValidate aria-label="Flight search">
         <datalist id={id("airports")}>{AIRPORTS.map((a) => <option key={a} value={a} />)}</datalist>
         <div className="vt-fields">
-          <div className="field vf-from"><label className="lbl" htmlFor={id("from")}>From</label>
-            <input id={id("from")} list={id("airports")} value={from} placeholder="Choose: e.g. Kochi (COK)" aria-invalid={!codesOf(from)} onChange={(e) => setFrom(e.target.value)} />
-            <div className="vf-quick" role="group" aria-label="Quick departure airports">
-              {QUICK_FROM.map((c) => <button key={c} type="button" className="chip" aria-pressed={codesOf(from) === c} onClick={() => { setFrom(labelOf(c)); setError(undefined); }}>{c}</button>)}
-              <button type="button" className="chip" aria-pressed={codesOf(from) === KERALA} onClick={() => { setFrom(labelOf(KERALA)); setError(undefined); }}>All Kerala airports</button>
-            </div></div>
+          <div className="field"><label className="lbl" htmlFor={id("from")}>From</label>
+            <input id={id("from")} list={id("airports")} value={from} placeholder="Type a city or airport" aria-invalid={!codesOf(from)} onChange={(e) => setFrom(e.target.value)} /></div>
           <div className="field"><label className="lbl" htmlFor={id("to")}>To</label>
-            <input id={id("to")} list={id("airports")} value={to} placeholder="Choose: e.g. Dubai (DXB)" aria-invalid={!codesOf(to)} onChange={(e) => setTo(e.target.value)} /></div>
+            <input id={id("to")} list={id("airports")} value={to} placeholder="Type a city or airport" aria-invalid={!codesOf(to)} onChange={(e) => setTo(e.target.value)} /></div>
           <div className="field"><label className="lbl" htmlFor={id("depart")}>Depart</label>
             <input id={id("depart")} type="date" min={today} value={depart} aria-invalid={!depart} onChange={(e) => setDepart(e.target.value)} /></div>
           <div className="field"><label className="lbl" htmlFor={id("return")}>Return</label>
@@ -175,6 +170,30 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
 
       {error && <p className="err-text" role="alert">{error}</p>}
 
+      {shortlist.length > 0 && (
+        <div className="vf-short" id={id("short")} aria-label="Sunny's options">
+          <h4>Sunny's options for {v.name} <span className="hint">({shortlist.length})</span></h4>
+          <ol>
+            {shortlist.map((s, i) => (
+              <li key={s.id + i} className="vf-short-item">
+                <div>
+                  <b>Option {i + 1} · {rupees(s.price)}</b> <span className="hint small">for {travellers(s.query)} · {s.query.cabin}{s.back ? " · return trip" : ""}</span>
+                  <FlightLine o={s.out} />
+                  {s.back && <FlightLine o={s.back} label="Return" />}
+                </div>
+                <button className="btn small-btn" disabled={busy === "save"} onClick={() => void saveList(shortlist.filter((_, j) => j !== i))} aria-label={`Remove option ${i + 1}`}>Remove</button>
+              </li>
+            ))}
+          </ol>
+          <div className="vt-head-actions">
+            <button className="btn solid" onClick={() => void copy()}>{copied ? "✓ Copied" : "📋 Copy for customer"}</button>
+            {(shortlist[0].googleUrl || search?.googleUrl) && <a className="btn" href={shortlist[0].googleUrl || search!.googleUrl} target="_blank" rel="noreferrer">Open in Google Flights ↗</a>}
+          </div>
+          <details className="vf-preview"><summary>Preview the text</summary><pre>{shortlistText(v.name, shortlist)}</pre></details>
+          <p className="hint small">Nothing is sent to the customer from here, and nothing is booked: Sunny sends the text and books in Sabre as usual.</p>
+        </div>
+      )}
+
       {search && (
         <div className="vf-results">
           <p className="vf-summary">
@@ -195,6 +214,7 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
                     </button>))}
                 </div>
                 <label className="vt-check"><input type="checkbox" checked={nonstopOnly} onChange={(e) => setNonstopOnly(e.target.checked)} /> Nonstop only</label>
+                {shortlist.length > 0 && <a className="vf-jump" href={`#${id("short")}`}>✓ {shortlist.length} in Sunny's options ↑</a>}
                 <label className="vf-airline"><span className="lbl">Airline</span>
                   <select value={airline} onChange={(e) => setAirline(e.target.value)}><option value="">All airlines</option>{airlines.map((a) => <option key={a}>{a}</option>)}</select></label>
               </div>
@@ -226,30 +246,6 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
               {full && <p className="hint small">Sunny's list is full ({SHORTLIST_MAX}). Remove one to add another.</p>}
             </>
           )}
-        </div>
-      )}
-
-      {shortlist.length > 0 && (
-        <div className="vf-short" aria-label="Sunny's options">
-          <h4>Sunny's options for {v.name} <span className="hint">({shortlist.length})</span></h4>
-          <ol>
-            {shortlist.map((s, i) => (
-              <li key={s.id + i} className="vf-short-item">
-                <div>
-                  <b>Option {i + 1} · {rupees(s.price)}</b> <span className="hint small">for {travellers(s.query)} · {s.query.cabin}{s.back ? " · return trip" : ""}</span>
-                  <FlightLine o={s.out} />
-                  {s.back && <FlightLine o={s.back} label="Return" />}
-                </div>
-                <button className="btn small-btn" disabled={busy === "save"} onClick={() => void saveList(shortlist.filter((_, j) => j !== i))} aria-label={`Remove option ${i + 1}`}>Remove</button>
-              </li>
-            ))}
-          </ol>
-          <div className="vt-head-actions">
-            <button className="btn solid" onClick={() => void copy()}>{copied ? "✓ Copied" : "📋 Copy for customer"}</button>
-            {(shortlist[0].googleUrl || search?.googleUrl) && <a className="btn" href={shortlist[0].googleUrl || search!.googleUrl} target="_blank" rel="noreferrer">Open in Google Flights ↗</a>}
-          </div>
-          <details className="vf-preview"><summary>Preview the text</summary><pre>{shortlistText(v.name, shortlist)}</pre></details>
-          <p className="hint small">Nothing is sent to the customer from here, and nothing is booked: Sunny sends the text and books in Sabre as usual.</p>
         </div>
       )}
       {shortlist.length === 0 && search && search.googleUrl && (

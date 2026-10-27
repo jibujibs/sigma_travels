@@ -11,9 +11,6 @@ export const CABIN_OPTIONS = ["Economy", "Premium economy", "Business", "First"]
 export type Cabin = (typeof CABIN_OPTIONS)[number];
 export type Stops = "any" | "nonstop" | "1";
 
-/** Kerala airports, searched together when Sunny presses "All Kerala airports". */
-export const KERALA = "COK,TRV,CCJ";
-
 /** What Sunny searches for. from may hold up to 3 airport codes (comma separated); to holds one. */
 export interface FlightQuery {
   from: string;

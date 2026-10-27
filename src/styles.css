@@ -474,9 +474,7 @@ table.tickets td,table.tickets th{padding:6px}
 .vf-box h3{margin:0;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
 .vf-sub{text-transform:none;letter-spacing:0;font-weight:400;font-size:13px}
 .vf-form{display:grid;gap:10px}
-.vf-from{grid-column:span 2;align-self:start}
-.vf-quick{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-.vf-quick .chip{font-size:13px;padding:4px 10px}
+.vf-jump{font-size:14px;font-weight:600;color:var(--teal)}
 .vf-form input[aria-invalid="true"]{border-color:var(--sand)}
 .vf-results{display:grid;gap:10px;min-width:0}
 .vf-summary{margin:0;display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
@@ -515,4 +513,4 @@ table.tickets td,table.tickets th{padding:6px}
   .vf-air{grid-column:1 / -1}
   .vf-price{text-align:left}
 }
-@media (max-width:480px){.vf-from{grid-column:auto}.vf-returns{margin-left:4px}}
+@media (max-width:480px){.vf-returns{margin-left:4px}}
