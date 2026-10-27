@@ -16,6 +16,8 @@ function localApi(): Plugin {
       server.middlewares.use(async (req, res, next) => {
         if (!req.url || !req.url.startsWith("/api/")) return next();
         const url = new URL(req.url, `http://${req.headers.host ?? "localhost"}`);
+        // Same rewrite as vercel.json: /api/diag is /api/health?check=1.
+        if (url.pathname.replace(/\/$/, "") === "/api/diag") { url.pathname = "/api/health"; url.searchParams.set("check", "1"); }
         const name = url.pathname.replace(/^\/api\//, "").replace(/\/$/, "");
         const file = path.resolve(server.config.root, "api", `${name}.ts`);
         const send = (status: number, body: unknown) => {

@@ -1,5 +1,6 @@
 import type { ManageView, PaymentLink, PayRail, PayView, PnrResponse } from "../../shared/booking";
 import type { IntentResponse, PlanResponse, RecommendResponse, Recommendation, TripBrief, TripPlan } from "../../shared/types";
+import type { VoiceRequest, VoiceStatus } from "../../shared/voice";
 import { dropSession, getAccessToken } from "./auth";
 import type { PlanState } from "./trip";
 
@@ -67,6 +68,12 @@ export const api = {
   },
   booking: {
     find: (pnr: string, email: string) => post<ManageView>("/api/booking", { pnr, email }),
+  },
+  voice: {
+    send: (m: { name: string; phone: string; email: string; audio: string; mime: string; seconds: number }) =>
+      post<{ id: string; emailed: boolean }>("/api/voice", m),
+    list: () => request<{ requests: VoiceRequest[] }>("GET", "/api/voice"),
+    setStatus: (id: string, status: VoiceStatus) => request<{ request: VoiceRequest }>("PATCH", "/api/voice", { id, status }),
   },
   profile: {
     get: (guestId: string) => request<Profile>("GET", `/api/profile?${q({ guestId })}`),

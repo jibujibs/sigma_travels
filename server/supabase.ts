@@ -232,12 +232,88 @@ export function getChatHistory(userId: string, threadId: string, limit = 60): Pr
   );
 }
 
+/* ---------- voice requests (customer voice messages for Sunny) ---------- */
+
+export const VOICE_BUCKET = "voice-messages";
+
+export interface VoiceRow {
+  id: string;
+  created_at: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  audio_path: string;
+  audio_mime: string;
+  seconds: number;
+  language: string | null;
+  transcript: string | null;
+  transcript_en: string | null;
+  status: "new" | "contacted" | "ticketed" | "closed";
+  error: string | null;
+  submitted_by: string | null;
+}
+
+export async function insertVoice(row: Pick<VoiceRow, "name" | "phone" | "email" | "audio_path" | "audio_mime" | "seconds" | "submitted_by">): Promise<VoiceRow> {
+  const rows = await rest<VoiceRow[]>("saving the voice message", "voice_requests?select=*", { method: "POST", body: [row], prefer: "return=representation" });
+  return rows[0];
+}
+
+export async function updateVoice(id: string, patch: Partial<VoiceRow>): Promise<VoiceRow | null> {
+  const rows = await rest<VoiceRow[]>("updating the voice message", `voice_requests?id=eq.${enc(id)}&select=*`, { method: "PATCH", body: patch, prefer: "return=representation" });
+  return rows[0] ?? null;
+}
+
+export function listVoice(limit = 50): Promise<VoiceRow[]> {
+  return rest<VoiceRow[]>("loading voice messages", `voice_requests?select=*&order=created_at.desc&limit=${limit}`);
+}
+
+/** Uploads a recording to the private storage bucket (server key only; browsers can't read the bucket). */
+export async function uploadAudio(path: string, bytes: Buffer, mime: string): Promise<void> {
+  const cfg = supabaseConfig();
+  if (!cfg) throw new HttpError(503, "Voice messages need Supabase. Add SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.");
+  let res: Response;
+  try {
+    res = await fetch(`${cfg.url}/storage/v1/object/${VOICE_BUCKET}/${path}`, {
+      method: "POST",
+      headers: { ...headers(cfg), "content-type": mime, "x-upsert": "false" },
+      body: new Uint8Array(bytes),
+      signal: AbortSignal.timeout(20_000),
+    });
+  } catch {
+    throw new DatabaseError("saving the recording", "Couldn't reach Supabase Storage.");
+  }
+  if (!res.ok) {
+    const text = (await res.text().catch(() => "")).slice(0, 200);
+    console.error(`[supabase] upload ${path}: ${res.status} ${text}`);
+    throw new DatabaseError("saving the recording", /bucket/i.test(text) ? `The "${VOICE_BUCKET}" storage bucket is missing (see README).` : `(${res.status}) ${text}`);
+  }
+}
+
+/** A short-lived link Sunny's browser can play. Null if signing fails (the inbox still shows the text). */
+export async function signedAudioUrl(path: string, seconds = 3600): Promise<string | null> {
+  const cfg = supabaseConfig();
+  if (!cfg) return null;
+  try {
+    const res = await fetch(`${cfg.url}/storage/v1/object/sign/${VOICE_BUCKET}/${path}`, {
+      method: "POST",
+      headers: headers(cfg),
+      body: JSON.stringify({ expiresIn: seconds }),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return null;
+    const { signedURL } = (await res.json()) as { signedURL?: string };
+    return signedURL ? `${cfg.url}/storage/v1${signedURL.startsWith("/") ? "" : "/"}${signedURL}` : null;
+  } catch {
+    return null;
+  }
+}
+
 /* ---------- health ---------- */
 
 /** Checks each table the app uses is reachable with the server key. Never returns the key. */
 export async function checkTables(): Promise<Record<string, string>> {
   const out: Record<string, string> = {};
-  for (const t of ["users", "itineraries", "chat_messages", "allowed_emails", "payment_links"]) {
+  for (const t of ["users", "itineraries", "chat_messages", "allowed_emails", "payment_links", "voice_requests"]) {
     try {
       await rest<unknown>(`checking ${t}`, `${t}?select=${t === "allowed_emails" ? "email" : "id"}&limit=1`);
       out[t] = "ok";

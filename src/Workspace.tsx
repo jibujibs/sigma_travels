@@ -2,6 +2,8 @@ import { useEffect, useState, type ReactNode } from "react";
 import App from "./App";
 import { PnrDesk } from "./agent/PnrDesk";
 import { ManageBooking } from "./customer/ManageBooking";
+import { VoiceMessage } from "./customer/VoiceMessage";
+import { VoiceInbox } from "./agent/VoiceInbox";
 import { AccountMenu } from "./components/AccountMenu";
 import { Brand } from "./components/Brand";
 import { ContactFooter } from "./components/ContactFooter";
@@ -81,7 +83,9 @@ export function Workspace({ user, onSaveHomeAirport, onSignOut }: Props) {
         <HomeAirport name={user.name} initial={user.homeAirport} onCancel={() => setEditAirport(false)}
           onSave={async (a) => { await onSaveHomeAirport(a); setEditAirport(false); }} />
       )}
-      {view === "agent" ? <PnrDesk agentName={user.name} /> : <ManageBooking />}
+      {view === "agent"
+        ? <><PnrDesk agentName={user.name} /><VoiceInbox /></>
+        : <><ManageBooking /><VoiceMessage /></>}
       <ContactFooter />
     </div>
   );
