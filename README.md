@@ -151,7 +151,7 @@ The **CUSTOMER** tab has a **Voice message** card: the customer gives their name
 
 `POST /api/voice` then:
 1. stores the recording in the private Supabase Storage bucket `voice-messages` and a row in `voice_requests`;
-2. sends the audio to Gemini (`server/voice.ts`, same `GEMINI_API_KEY`), which returns the language, the words as spoken and an English version;
+2. sends the audio to Gemini (`server/voice.ts`, same `GEMINI_API_KEY`), which returns the language, the words as spoken and an English version. Speech uses the stronger Flash models first (`gemini-3.8-flash`, then `gemini-3.7-flash`; Lite only as fallback when their free limits run out), because Lite mishears mixed Malayalam/English. Optional `GEMINI_VOICE_MODEL` puts another model first;
 3. emails a notification through Resend (`server/email.ts`) to `NOTIFY_EMAIL`. A failed transcription or email never loses the message.
 
 The **AGENT** tab shows **Voice requests** (`GET /api/voice`, refreshed every 30 s): play the recording (signed link, 1 hour), read the English text (and the original), **Call** / **Email** the customer, and set the status (New, Contacted, Ticketed, Closed; `PATCH /api/voice`). Sign-in is required for now, like the rest of the site.
