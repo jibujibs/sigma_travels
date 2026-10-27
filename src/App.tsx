@@ -11,7 +11,7 @@ import { api, ApiError, type Profile, type TripSummary } from "./lib/api";
 import { copilotContext } from "./lib/context";
 import { getGuestId } from "./lib/guest";
 import { addDays, iso, todayUTC } from "./lib/format";
-import { briefFromTrip, clearPlannerPrefill, peekPlannerPrefill } from "./lib/plannerPrefill";
+import { briefFromTrip, clearPlannerPrefill, peekPlannerPrefill, prefillMessage } from "./lib/plannerPrefill";
 import { downloadTripPdf } from "./lib/pdf";
 import { bestReturn, needsList, planNeeds, price, tripLength, type PlanState } from "./lib/trip";
 
@@ -70,7 +70,7 @@ export default function App({ user, onSaveHomeAirport, onSignOut, nav, brand }: 
     const home = user.homeAirport ? { ...b, origin: user.homeAirport } : b;
     return prefill ? briefFromTrip(home, prefill.trip, iso(todayUTC())) : home;
   });
-  const [prefillNote, setPrefillNote] = useState(prefill ? `Filled in from ${prefill.from}'s voice message. Check the details, then press Search.` : "");
+  const [prefillNote, setPrefillNote] = useState(prefill ? prefillMessage(prefill.from, prefill.trip) : "");
   const [editAirport, setEditAirport] = useState(false);
   const [recs, setRecs] = useState<Recommendation[] | null>(null);
   const [planState, setPlanState] = useState<PlanState | null>(null);

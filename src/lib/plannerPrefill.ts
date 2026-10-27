@@ -43,3 +43,17 @@ export function briefFromTrip(base: TripBrief, t: VoiceTrip, today: string): Tri
     needs: { flights: true, hotel: true, car: true, itinerary: true },
   };
 }
+
+/**
+ * The banner above the planner: says plainly what the customer didn't say, because the planner fills
+ * those fields with its own values (From = the signed-in agent's home airport, Days = the default).
+ */
+export function prefillMessage(from: string, t: VoiceTrip): string {
+  const head = `Filled in from ${from}'s voice message.`;
+  if (!t.missing.length) return `${head} Check the details, then press Search.`;
+  const notes = [
+    !t.from && "From is your own home airport for now",
+    !t.return && !t.oneWay && "Days is the planner's default",
+  ].filter(Boolean).join("; ");
+  return `${head} The customer didn't say: ${t.missing.join(", ")}.${notes ? ` (${notes}.)` : ""} Check these with the customer, then press Search.`;
+}

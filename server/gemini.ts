@@ -94,7 +94,7 @@ export interface InlineFile { mimeType: string; data: string }
 
 export async function generateJson(
   prompt: string,
-  opts: { maxOutputTokens?: number; temperature?: number; label?: string; files?: InlineFile[]; prefer?: string[] } = {},
+  opts: { maxOutputTokens?: number; temperature?: number; label?: string; files?: InlineFile[]; prefer?: string[]; preferAttemptMs?: number } = {},
 ): Promise<{ data: unknown; model: string }> {
   const key = geminiKey();
   if (!key) throw new HttpError(503, "GEMINI_API_KEY is not set on the server. Add it to .env.local (local) or Vercel → Settings → Environment Variables.");
@@ -122,7 +122,8 @@ export async function generateJson(
         res = await fetch(`${ENDPOINT}/${encodeURIComponent(model)}:generateContent`, {
           method: "POST",
           headers: { "content-type": "application/json", "x-goog-api-key": key },
-          signal: AbortSignal.timeout(Math.min(remaining, attemptCap)),
+          // A preferred model gets a shorter wait when the caller asks (voice), so a hanging one doesn't hold everything up.
+          signal: AbortSignal.timeout(Math.min(remaining, opts.prefer?.includes(model) && opts.preferAttemptMs ? opts.preferAttemptMs : attemptCap)),
           body: JSON.stringify({
             contents: [{ role: "user", parts: [
               ...(opts.files ?? []).map((f) => ({ inline_data: { mime_type: f.mimeType, data: f.data } })),

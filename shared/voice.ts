@@ -100,6 +100,9 @@ export function missingFor(t: Pick<VoiceTrip, "from" | "to" | "depart" | "return
   return [
     !t.from && "departure city",
     !t.to && "destination",
+    // A country or region without an airport ("Saudi Arabia"): flights need a city.
+    t.from && !t.from.airport && `which city in ${t.from.city} they fly from`,
+    t.to && !t.to.airport && `which city in ${t.to.city}`,
     !t.depart && "travel date",
     !t.return && !t.oneWay && "return date",
     t.adults + t.children === 0 && "number of travellers",
@@ -121,6 +124,19 @@ export function normalizeTrip(raw: unknown, edited = false): VoiceTrip | null {
   };
   if (!base.to && !base.from && !base.depart) return null;
   return { ...base, missing: missingFor(base), ...(edited ? { edited: true } : {}) };
+}
+
+/**
+ * A date said without a year ("13th October") that has already passed lands next year: ask Sunny to confirm it.
+ * Not stored, so it disappears once Sunny edits and saves the trip.
+ */
+export function withDateCheck(t: VoiceTrip | null, sent: string): VoiceTrip | null {
+  if (!t || t.edited || !t.depart) return t;
+  const days = (Date.parse(t.depart) - Date.parse(sent.slice(0, 10))) / 864e5;
+  if (!(days >= 300)) return t;
+  const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const when = `${Number(t.depart.slice(8, 10))} ${MON[Number(t.depart.slice(5, 7)) - 1]} ${t.depart.slice(0, 4)}`;
+  return { ...t, missing: [...t.missing, `confirm the travel date (${when} is almost a year away)`] };
 }
 
 /** Sunny's actions on one message (PATCH /api/voice). */

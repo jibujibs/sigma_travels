@@ -5,7 +5,7 @@ import { handle, HttpError, json, parseBody } from "../server/http.js";
 import { originOf } from "../server/payments.js";
 import { downloadAudio, insertVoice, isMissingColumn, listVoice, signedAudioUrl, updateVoice, uploadAudio, voiceById, type VoiceRow } from "../server/supabase.js";
 import { readTrip, transcribe } from "../server/voice.js";
-import { normalizeTrip, tripLine, voicePatchSchema, voiceSubmitSchema, type VoiceRequest, type VoiceTrip } from "../shared/voice.js";
+import { normalizeTrip, tripLine, withDateCheck, voicePatchSchema, voiceSubmitSchema, type VoiceRequest, type VoiceTrip } from "../shared/voice.js";
 
 /**
  * Voice messages for Sunny.
@@ -47,7 +47,7 @@ async function toView(r: VoiceRow): Promise<VoiceRequest> {
     status: r.status,
     ...(r.error ? { error: r.error } : !r.transcript_en && !isProcessing(r) ? { error: "The voice wasn't turned into text. Press Try again." } : {}),
     processing: isProcessing(r),
-    trip: tripOf(r),
+    trip: withDateCheck(tripOf(r), r.created_at),
     tripSaved: "trip" in r,
   };
 }
@@ -71,7 +71,7 @@ async function processVoice(row: VoiceRow, audio: string, mime: string, origin: 
   let trip: VoiceTrip | null = null;
   try {
     const t = await transcribe(audio, mime, new Date(row.created_at));
-    trip = t.trip;
+    trip = withDateCheck(t.trip, row.created_at);
     const fields = { language: t.language, transcript: t.transcript, transcript_en: t.english, error: t.transcript ? null : "No speech could be heard in the recording." };
     row = (await saveTrip(row.id, trip, fields)) ?? { ...row, ...fields };
   } catch (e) {
