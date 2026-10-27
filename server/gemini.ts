@@ -89,9 +89,12 @@ export function thinkingFor(model: string): Record<string, unknown> | undefined 
   return undefined;
 }
 
+/** Extra input sent with the prompt, e.g. a voice recording: { mimeType: "audio/webm", data: base64 }. */
+export interface InlineFile { mimeType: string; data: string }
+
 export async function generateJson(
   prompt: string,
-  opts: { maxOutputTokens?: number; temperature?: number; label?: string } = {},
+  opts: { maxOutputTokens?: number; temperature?: number; label?: string; files?: InlineFile[] } = {},
 ): Promise<{ data: unknown; model: string }> {
   const key = geminiKey();
   if (!key) throw new HttpError(503, "GEMINI_API_KEY is not set on the server. Add it to .env.local (local) or Vercel → Settings → Environment Variables.");
@@ -119,7 +122,10 @@ export async function generateJson(
           headers: { "content-type": "application/json", "x-goog-api-key": key },
           signal: AbortSignal.timeout(Math.min(remaining, attemptCap)),
           body: JSON.stringify({
-            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            contents: [{ role: "user", parts: [
+              ...(opts.files ?? []).map((f) => ({ inline_data: { mime_type: f.mimeType, data: f.data } })),
+              { text: prompt },
+            ] }],
             generationConfig: {
               responseMimeType: "application/json",
               temperature: opts.temperature ?? 0.7,

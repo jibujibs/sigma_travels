@@ -2,6 +2,10 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
+      "source": "/api/diag",
+      "destination": "/api/health?check=1"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
@@ -14,9 +18,6 @@
       "maxDuration": 300
     },
     "api/health.ts": {
-      "maxDuration": 60
-    },
-    "api/diag.ts": {
       "maxDuration": 60
     },
     "api/chat.ts": {
@@ -42,6 +43,9 @@
     },
     "api/booking.ts": {
       "maxDuration": 30
+    },
+    "api/voice.ts": {
+      "maxDuration": 120
     }
   }
 }

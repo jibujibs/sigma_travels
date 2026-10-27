@@ -5,7 +5,7 @@ Ask for exactly what you need: flights, a hotel, a rental car or a full trip pla
 **Stack:** React 19 + Vite 7 (frontend) · Vercel Functions in `api/` (backend) · Gemini REST API · Supabase database and Auth (REST API, no SDK) · pdf-lib (PDF in the browser)
 
 ```
-api/          Vercel Functions: intent, recommend, plan, trips, chat, profile, health, diag, pnr, paylink, pay
+api/          Vercel Functions: intent, recommend, plan, trips, chat, profile, health, pnr, paylink, pay, booking, voice
 server/       Gemini client, prompts, Copilot, Supabase client, sign-in check, error handling (server only)
 shared/       Types, request validation (zod), response normaliser
 src/          React app (sign-in, components, quote maths, PDF export)
@@ -144,6 +144,21 @@ create table public.payment_links (
 create index on public.payment_links (pnr, created_at desc);
 alter table public.payment_links enable row level security;
 ```
+
+## Voice messages (Customer → Sunny)
+
+The **CUSTOMER** tab has a **Voice message** card: the customer gives their name and a phone number or email, records up to 3 minutes (browser microphone; WebM/Opus on Chrome, MP4/AAC on Safari and iPhone), listens back and presses **Send to Sunny**.
+
+`POST /api/voice` then:
+1. stores the recording in the private Supabase Storage bucket `voice-messages` and a row in `voice_requests`;
+2. sends the audio to Gemini (`server/voice.ts`, same `GEMINI_API_KEY`), which returns the language, the words as spoken and an English version;
+3. emails a notification through Resend (`server/email.ts`) to `NOTIFY_EMAIL`. A failed transcription or email never loses the message.
+
+The **AGENT** tab shows **Voice requests** (`GET /api/voice`, refreshed every 30 s): play the recording (signed link, 1 hour), read the English text (and the original), **Call** / **Email** the customer, and set the status (New, Contacted, Ticketed, Closed; `PATCH /api/voice`). Sign-in is required for now, like the rest of the site.
+
+**Setup:** run `supabase/voice_requests.sql` in the Supabase SQL Editor (creates the table and the bucket). Environment variables (server, Secret): `RESEND_API_KEY`, `NOTIFY_EMAIL` (comma-separated for several). Optional `EMAIL_FROM` once a domain is verified in Resend; until then mail comes from `onboarding@resend.dev` and Resend only delivers it to the Resend account's own address.
+
+**Functions:** the Vercel Hobby plan allows 12. `/api/diag` is now a rewrite to `/api/health?check=1` (in `vercel.json` and `vite.config.ts`), which freed the slot for `api/voice.ts`.
 
 ## Only what you ask for
 
