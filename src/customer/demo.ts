@@ -33,8 +33,8 @@ export const DEMO_SAMPLES: readonly DemoSample[] = [
     text: "Hello, we are four adults flying one way from San Francisco to Kochi on December 15th. Any airline is fine, but please find us a good price. Thanks.",
   },
   {
-    id: "saudi-en", label: "Saudi · date not given", voice: "Aoede",
-    text: "Hi, I want to travel to Saudi Arabia next month with my family. Can you suggest some options?",
+    id: "saudi-en", label: "Kochi → Riyadh · 3 adults", voice: "Aoede",
+    text: "Hi Sunny, three of us want to fly from Kochi to Riyadh on November 15th, one way. Economy is fine. Please send me some options. Thank you.",
   },
 ];
 
