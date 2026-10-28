@@ -7,7 +7,7 @@ import { originOf } from "../server/payments.js";
 import { downloadAudio, insertVoice, isMissingColumn, listVoice, signedAudioUrl, updateVoice, uploadAudio, voiceById, type VoiceRow } from "../server/supabase.js";
 import { flightsConfigured, returnFlights, searchFlights } from "../server/flights.js";
 import { readTrip, transcribe } from "../server/voice.js";
-import { autoSearchBlockers, queryFromTrip, type ShortlistItem, type VoiceFlights } from "../shared/flights.js";
+import { autoSearchBlockers, queryFromTrip, type FlightQuery, type ShortlistItem, type VoiceFlights } from "../shared/flights.js";
 import { normalizeTrip, withDateCheck, voicePatchSchema, voiceSubmitSchema, type VoiceRequest, type VoiceTrip } from "../shared/voice.js";
 
 /**
@@ -121,13 +121,18 @@ async function processVoice(row: VoiceRow, audio: string, mime: string, origin: 
  * After the voice is read: search real flights by itself, but only when the customer clearly said from, to
  * (a city with an airport) and an exact date. Never throws; a failure is noted for Sunny, who can search himself.
  */
+const TRIP_KEYS = ["from", "to", "depart", "return", "adults", "children", "infants", "cabin"] as const;
+const sameTrip = (a: FlightQuery, b: FlightQuery) => TRIP_KEYS.every((k) => a[k] === b[k]);
+
 async function autoFlights(row: VoiceRow, trip: VoiceTrip | null): Promise<VoiceRow> {
   if (!flightsConfigured() || !trip || autoSearchBlockers(trip, today()).length) return row;
   const existing = flightsOf(row);
-  if (existing?.search) return row; // searched before (e.g. Try again): don't spend another search
+  const query = queryFromTrip(trip, today());
+  // Already searched for these same details (e.g. Try again, or Read again found nothing new): don't spend another search.
+  if (existing?.search && sameTrip(existing.search.query, query)) return row;
   let flights: VoiceFlights;
   try {
-    flights = { search: await searchFlights(queryFromTrip(trip, today()), true), shortlist: existing?.shortlist ?? [] };
+    flights = { search: await searchFlights(query, true), shortlist: existing?.shortlist ?? [] };
   } catch (e) {
     const reason = e instanceof Error ? e.message : String(e);
     console.warn(`[voice] automatic flight search failed for ${row.id}: ${reason}`);
@@ -173,6 +178,8 @@ export const PATCH = handle(async (request) => {
     if (!(await voiceById(body.id))) throw new HttpError(404, "That voice message wasn't found.");
     row = await saveTrip(body.id, trip);
     if (!row) throw new HttpError(503, `Trip details can't be saved yet. ${TRIP_SQL}`);
+    // Sunny filled in what was missing: search by itself once the details are complete.
+    row = await autoFlights(row, trip);
   } else if (body.action === "retry") {
     const current = await voiceById(body.id);
     if (!current) throw new HttpError(404, "That voice message wasn't found.");
@@ -201,9 +208,11 @@ export const PATCH = handle(async (request) => {
     const current = await voiceById(body.id);
     if (!current) throw new HttpError(404, "That voice message wasn't found.");
     if (!current.transcript_en) throw new HttpError(409, "This message has no text yet, so there's nothing to read the trip from.");
-    const trip = await readTrip(current.transcript_en, new Date(current.created_at));
+    const trip = withDateCheck(await readTrip(current.transcript_en, new Date(current.created_at)), current.created_at);
     row = await saveTrip(body.id, trip);
     if (!row) throw new HttpError(503, `Trip details can't be saved yet. ${TRIP_SQL}`);
+    // Read again found complete details: search by itself, so Sunny doesn't have to press Search.
+    row = await autoFlights(row, trip);
   }
 
   if (!row) throw new HttpError(404, "That voice message wasn't found.");

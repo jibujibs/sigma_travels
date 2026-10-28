@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { CABINS, missingFor, placeLabel, type TripPlace, type VoiceRequest, type VoiceTrip } from "../../shared/voice";
 import { api } from "../lib/api";
 import { AIRPORTS } from "../lib/airports";
@@ -38,6 +38,8 @@ export function VoiceTripBox({ v, onChange, onOpenPlanner }: Props) {
   const t = v.trip;
   // Once flight results are shown, the trip is no longer edited here: Sunny changes the search in the Flights box.
   const hasResults = Boolean(v.flights?.search);
+  // Flights arrived (searched by itself or by Sunny) while the edit form was open: close it.
+  useEffect(() => { if (hasResults) setEditing(false); }, [hasResults]);
 
   async function readAgain() {
     setBusy("read");

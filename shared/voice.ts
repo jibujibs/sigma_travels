@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { flightQuerySchema, SHORTLIST_MAX, type VoiceFlights } from "./flights.js";
+import { airportFor } from "./airports.js";
 
 /** Longest voice message a customer can record. */
 export const VOICE_MAX_SECONDS = 180;
@@ -96,7 +97,8 @@ const place = (v: unknown): TripPlace | null => {
   const o = (v && typeof v === "object" ? v : {}) as Record<string, unknown>;
   const city = str(o.city).slice(0, 60);
   const airport = str(o.airport).replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase();
-  return city ? { city, airport: airport.length === 3 ? airport : "" } : null;
+  // Gemini sometimes leaves out the code of a well-known city ("Dubai"): take it from our airport list.
+  return city ? { city, airport: airport.length === 3 ? airport : airportFor(city) } : null;
 };
 const cabinOf = (v: unknown) => CABINS.find((c) => c.toLowerCase() === str(v).toLowerCase()) ?? "";
 
