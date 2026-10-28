@@ -93,7 +93,7 @@ ${top.map(({ option: o, reason }) => {
   return `<tr>${td(`<b>${esc(o.airline)}</b><br><span style="font-size:12px;color:${C.orange};font-weight:bold">${esc(reason)}</span>`)}${td(`<b>${clock(a.dep)}</b><br><span style="font-size:12px;color:${C.muted}">${esc(day(a.dep.slice(0, 10)))}</span>`)}${td(`${o.layovers.length ? `${o.layovers.length} stop${o.layovers.length > 1 ? "s" : ""}` : "Nonstop"}<br><span style="font-size:12px;color:${C.muted}">${hm(o.minutes)}${o.layovers.length ? ` · via ${esc(o.layovers.map((l) => l.airport).join(", "))}` : ""}</span>`)}${td(`<b>${esc(rupees(o.price))}</b>`, "right")}</tr>`;
 }).join("\n")}
 </table>
-<div style="${font}font-size:12px;color:${C.muted};margin:8px 0 0">${search.options.length} flights found. Prices are the total for ${esc(travellers(search.query))}${roundTrip ? ", round trip" : `, one way${trip?.oneWay ? "" : " (the return date wasn't given)"}`}, from Google Flights at ${searchedAt} IST; they can change.</div>`
+<div style="${font}font-size:12px;color:${C.muted};margin:8px 0 0">${search.options.length} flights found. Prices are the total for ${esc(travellers(search.query))}${roundTrip ? ", round trip" : ", one way"}, from Google Flights at ${searchedAt} IST; they can change.</div>`
       : `${label("Flights")}<div style="${font}font-size:14px;color:${C.ink}">No flights found on Google Flights for these details. Sunny can change the search on the Agent Desk.</div>`
     : flights?.note || trip
       ? `${label("Flights")}<div style="${font}font-size:14px;color:${C.ink}">${esc(flights?.note ?? "Not searched yet: confirm the details above, then search on the Agent Desk.")}</div>`
@@ -139,7 +139,7 @@ ${flightsBlock ? section(flightsBlock) : ""}
     trip?.missing.length ? `STILL TO CONFIRM: ${trip.missing.join(", ")}` : "",
     row.transcript_en ? (english ? `WHAT THEY SAID\n"${row.transcript_en}"` : `WHAT THEY SAID\nOriginal (${lang}): ${row.transcript ?? ""}\nEnglish: "${row.transcript_en}"`) : `WHAT THEY SAID\n${row.error ?? "Couldn't be turned into text."}`,
     top.length ? [`TOP ${top.length} FLIGHT PICKS`, ...top.map(({ option: o, reason }, i) => `${i + 1}. ${o.airline} · ${clock(o.legs[0].dep)} ${day(o.legs[0].dep.slice(0, 10))} · ${o.layovers.length ? `${o.layovers.length} stop` : "nonstop"} · ${hm(o.minutes)} · ${rupees(o.price)} (${reason})`),
-      `Total for ${travellers(search!.query)}${roundTrip ? ", round trip" : `, one way${trip?.oneWay ? "" : " (the return date wasn't given)"}`}; from Google Flights, can change.`].join("\n") : flights?.note ?? "",
+      `Total for ${travellers(search!.query)}${roundTrip ? ", round trip" : ", one way"}; from Google Flights, can change.`].join("\n") : flights?.note ?? "",
     `Open the Agent Desk: ${desk}`,
     "Automatic message from the Sigma Travels AI Voice Assistant.",
   ].filter(Boolean).join("\n\n");

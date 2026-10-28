@@ -111,7 +111,7 @@ export function missingFor(t: Pick<VoiceTrip, "from" | "to" | "depart" | "return
     t.from && !t.from.airport && `which city in ${t.from.city} they fly from`,
     t.to && !t.to.airport && `which city in ${t.to.city}`,
     !t.depart && "travel date",
-    !t.return && !t.oneWay && "return date",
+    // No return date said: it's a one-way trip, so there is nothing to ask.
     t.adults + t.children === 0 && "number of travellers",
   ].filter((x): x is string => Boolean(x));
 }
