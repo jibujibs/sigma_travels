@@ -111,7 +111,7 @@ export function VoiceMessage() {
   if (phase === "sent") {
     return (
       <section className="desk-hero voice-card" aria-labelledby="vm-h">
-        <p className="eyebrow">Voice message</p>
+        <p className="eyebrow">New trip</p>
         <h2 id="vm-h">✓ Message sent to Sunny</h2>
         <p className="hint">Thank you, {name.trim().split(" ")[0]}. Sunny will listen to your message and contact you {phone ? `on ${phone}` : `at ${email}`} with flight options.</p>
         <div><button type="button" className="btn" onClick={() => { again(); setName(""); setPhone(""); setEmail(""); }}>Leave another message</button></div>
@@ -123,8 +123,8 @@ export function VoiceMessage() {
   return (
     <section className="desk-hero voice-card" aria-labelledby="vm-h">
       <div>
-        <p className="eyebrow">Voice message</p>
-        <h2 id="vm-h">Planning a new trip? Tell Sunny</h2>
+        <p className="eyebrow">New trip</p>
+        <h2 id="vm-h">AI Voice Assistant: Speak to Book</h2>
         <p className="hint">Record a message of up to 3 minutes: where you want to go, when, how many people and anything else. Sunny will call you back with flight options.</p>
       </div>
 
