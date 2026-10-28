@@ -6,6 +6,7 @@ import {
 import type { VoiceRequest } from "../../shared/voice";
 import { api } from "../lib/api";
 import { AIRPORTS } from "../lib/airports";
+import { downloadItineraryPdf } from "./itineraryPdf";
 
 type Sort = "best" | "price" | "duration" | "depart";
 const PAGE = 12;
@@ -141,6 +142,14 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
     .filter((o) => (!nonstopOnly || stopsOf(o) === 0) && (!airline || o.airline === airline))
     .sort(sorters[sort]), [search, nonstopOnly, airline, sort]);
 
+  const [pdfBusy, setPdfBusy] = useState(false);
+  async function pdf() {
+    setPdfBusy(true);
+    try { await downloadItineraryPdf({ name: v.name, phone: v.phone, email: v.email }, shortlist); }
+    catch { setError("Couldn't make the PDF. Try again, or use Copy for customer."); }
+    finally { setPdfBusy(false); }
+  }
+
   async function copy() {
     try { await navigator.clipboard.writeText(shortlistText(v.name, shortlist)); setCopied(true); window.setTimeout(() => setCopied(false), 2500); }
     catch { setError("Couldn't copy. Select the text in the preview and copy it by hand."); }
@@ -209,10 +218,11 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
           </ol>
           <div className="vt-head-actions">
             <button className="btn solid" onClick={() => void copy()}>{copied ? "✓ Copied" : "📋 Copy for customer"}</button>
+            <button className="btn solid" disabled={pdfBusy} onClick={() => void pdf()}>{pdfBusy ? "Making PDF…" : "📄 Download PDF"}</button>
             {(shortlist[0].googleUrl || search?.googleUrl) && <a className="btn" href={shortlist[0].googleUrl || search!.googleUrl} target="_blank" rel="noreferrer">Open in Google Flights ↗</a>}
           </div>
           <details className="vf-preview"><summary>Preview the text</summary><pre>{shortlistText(v.name, shortlist)}</pre></details>
-          <p className="hint small">Nothing is sent to the customer from here, and nothing is booked: Sunny sends the text and books in Sabre as usual.</p>
+          <p className="hint small">Nothing is sent to the customer from here, and nothing is booked: Sunny sends the text or the PDF and books in Sabre as usual.</p>
         </div>
       )}
 
