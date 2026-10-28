@@ -66,7 +66,14 @@ export function VoiceInbox({ onOpenPlanner }: { onOpenPlanner: (trip: VoiceTrip,
     }
   }
 
-  const fresh = items?.filter((x) => x.status === "new").length ?? 0;
+  // Only the newest request is shown: earlier ones (their text, trip and flights) stay hidden until Sunny asks.
+  // A new request from a customer replaces the one on screen and folds the earlier list away again.
+  const [showEarlier, setShowEarlier] = useState(false);
+  const newestId = items?.[0]?.id;
+  useEffect(() => { setShowEarlier(false); }, [newestId]);
+  const shown = items ? (showEarlier ? items : items.slice(0, 1)) : null;
+  const earlier = items ? items.length - 1 : 0;
+  const fresh = shown?.filter((x) => x.status === "new").length ?? 0;
 
   return (
     <section className="desk-hero voice-inbox" aria-labelledby="vi-h">
@@ -83,7 +90,7 @@ export function VoiceInbox({ onOpenPlanner }: { onOpenPlanner: (trip: VoiceTrip,
       {items && items.length === 0 && <p className="note">No voice messages yet. They'll appear here as soon as a customer sends one.</p>}
 
       <div className="vi-list">
-        {items?.map((v) => (
+        {shown?.map((v) => (
           <article key={v.id} className={`vi-item${v.status === "new" ? " is-new" : ""}`} aria-label={`Voice message from ${v.name}`}>
             <header className="vi-top">
               <div>
@@ -145,6 +152,10 @@ export function VoiceInbox({ onOpenPlanner }: { onOpenPlanner: (trip: VoiceTrip,
           </article>
         ))}
       </div>
+      {earlier > 0 && (
+        <button type="button" className="btn small-btn vi-earlier" aria-expanded={showEarlier} onClick={() => setShowEarlier((x) => !x)}>
+          {showEarlier ? "Hide earlier requests" : `Show earlier requests (${earlier})`}
+        </button>)}
     </section>
   );
 }
