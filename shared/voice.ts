@@ -157,6 +157,9 @@ export const voicePatchSchema = z.union([
   z.object({ id: z.string().uuid(), action: z.literal("flights-save"), shortlist: z.array(z.record(z.unknown())).max(SHORTLIST_MAX, `Up to ${SHORTLIST_MAX} options per customer.`) }),
 ]);
 
+/** "dayalu kumar" → "Dayalu Kumar" (customers often type their name in lower case). Only for showing it; the saved name is unchanged. */
+export const properName = (s: string) => s.trim().replace(/\s+/g, " ").replace(/(^|[\s-])(\p{Ll})/gu, (_, a: string, b: string) => a + b.toUpperCase());
+
 /** "Kochi (COK)" for a place, as the airport suggestions show it. */
 export const placeLabel = (p: TripPlace | null) => (p ? (p.airport ? `${p.city} (${p.airport})` : p.city) : "");
 

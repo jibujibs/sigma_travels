@@ -1,5 +1,5 @@
 import { hm, rupees, topThree, travellers, type VoiceFlights } from "../shared/flights.js";
-import type { VoiceTrip } from "../shared/voice.js";
+import { properName, type VoiceTrip } from "../shared/voice.js";
 import type { VoiceRow } from "./supabase.js";
 
 /**
@@ -9,8 +9,6 @@ import type { VoiceRow } from "./supabase.js";
  */
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
-/** "dayalu kumar" → "Dayalu Kumar" (customers often type their name in lower case). */
-export const properName = (s: string) => s.trim().replace(/\s+/g, " ").replace(/(^|[\s-])(\p{Ll})/gu, (_, a: string, b: string) => a + b.toUpperCase());
 
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
