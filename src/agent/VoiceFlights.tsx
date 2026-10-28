@@ -62,6 +62,8 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
   const [nonstopOnly, setNonstopOnly] = useState(false);
   const [airline, setAirline] = useState("");
   const [showAll, setShowAll] = useState(false);
+  // The full list starts folded under the Top 3, so the page stays short; Sunny opens it when he needs another flight.
+  const [listOpen, setListOpen] = useState(false);
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
   const [returns, setReturns] = useState<{ forId: string; options: FlightOption[] | null; error?: string } | null>(null);
@@ -85,6 +87,7 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
     setError(undefined);
     setReturns(null);
     setShowAll(false);
+    setListOpen(false);
     try { onChange((await api.voice.searchFlights(v.id, q)).request); }
     catch (err) { setError((err as Error).message); }
     finally { setBusy(undefined); }
@@ -117,6 +120,14 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
 
   const roundTrip = Boolean(search?.query.return);
   const top = useMemo(() => topThree(search?.options ?? [], v.trip?.airline ?? ""), [search, v.trip?.airline]);
+  // Folded only when the Top 3 doesn't already show every flight.
+  const canFold = top.length > 0 && (search?.options.length ?? 0) > top.length;
+  const folded = canFold && !listOpen;
+  // Airlines in the full list that aren't in the Top 3 (named next to "Show all", e.g. Emirates).
+  const others = useMemo(() => {
+    const inTop = new Set(top.map((t) => t.option.airline));
+    return [...new Set((search?.options ?? []).map((o) => o.airline).filter((a) => !inTop.has(a)))];
+  }, [search, top]);
   const topReason = useMemo(() => new Map(top.map((t) => [t.option.id, t.reason])), [top]);
   const topToAdd = top.filter((t) => !inList(t.option, null));
   // "Add all 3" adds the picks not added yet, as many as Sunny's list still has room for.
@@ -252,7 +263,16 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
                   {roundTrip && <p className="hint small">Return trip: press Choose return on a pick, then + Add the return flight.</p>}
                 </div>)}
 
-              <h4 className="vf-all-head">All flights</h4>
+              {folded ? (
+                <div className="vf-more">
+                  <button type="button" className="btn small-btn" aria-expanded="false" onClick={() => setListOpen(true)}>▾ Show all {search.options.length} flights</button>
+                  <span className="hint small">{search.options.length - top.length} more{others.length ? ` · ${others.slice(0, 4).join(", ")}${others.length > 4 ? "…" : ""}` : ""}</span>
+                </div>
+              ) : <>
+              <div className="vf-all-bar">
+                <h4 className="vf-all-head">All flights</h4>
+                {canFold && <button type="button" className="btn small-btn" aria-expanded="true" onClick={() => setListOpen(false)}>▴ Hide all flights</button>}
+              </div>
               <div className="vf-tools">
                 <div className="vf-sort" role="group" aria-label="Sort flights">
                   {(["best", "price", "duration", "depart"] as Sort[]).map((s) => (
@@ -276,6 +296,7 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
                 ))}
               </ol>
               {!showAll && shown.length > PAGE && <button className="btn small-btn" onClick={() => setShowAll(true)}>Show all {shown.length} flights</button>}
+              </>}
               {full && <p className="hint small">Sunny's list is full ({SHORTLIST_MAX}). Remove one to add another.</p>}
             </>
           )}
