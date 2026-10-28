@@ -126,8 +126,9 @@ export function VoiceInbox({ onOpenPlanner }: { onOpenPlanner: (trip: VoiceTrip,
                 </div>
               ) : (
                 <div className="vi-text">
-                  <section className="vi-orig" aria-label="Message">
-                    <p className="vi-label orig">Message · {v.language || "English"}</p>
+                  {/* Spoken in English: no translation needed, shown once in the same yellow box as a translation. */}
+                  <section className="vi-trans" aria-label="Message">
+                    <p className="vi-label">Message · {v.language || "English"}</p>
                     <p>{v.english}</p>
                   </section>
                 </div>
