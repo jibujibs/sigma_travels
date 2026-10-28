@@ -1,11 +1,12 @@
 import { useMemo, useState, type FormEvent } from "react";
 import {
-  autoSearchBlockers, CABIN_OPTIONS, dayShift, hm, queryFromTrip, rupees, SHORTLIST_MAX, shortlistText, stopsOf, topThree,
+  autoSearchBlockers, CABIN_OPTIONS, dayShift, hm, queryFromTrip, rupees, SHORTLIST_MAX, stopsOf, topThree,
   timeOnly, travellers, niceTime, type FlightOption, type FlightQuery, type ShortlistItem,
 } from "../../shared/flights";
 import type { VoiceRequest } from "../../shared/voice";
 import { api } from "../lib/api";
 import { AIRPORTS } from "../lib/airports";
+import { downloadItineraryPdf } from "./itineraryPdf";
 
 type Sort = "best" | "price" | "duration" | "depart";
 const PAGE = 12;
@@ -63,7 +64,6 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
   const [showAll, setShowAll] = useState(false);
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
-  const [copied, setCopied] = useState(false);
   const [returns, setReturns] = useState<{ forId: string; options: FlightOption[] | null; error?: string } | null>(null);
 
   const id = (k: string) => `vf-${v.id}-${k}`;
@@ -141,10 +141,14 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
     .filter((o) => (!nonstopOnly || stopsOf(o) === 0) && (!airline || o.airline === airline))
     .sort(sorters[sort]), [search, nonstopOnly, airline, sort]);
 
-  async function copy() {
-    try { await navigator.clipboard.writeText(shortlistText(v.name, shortlist)); setCopied(true); window.setTimeout(() => setCopied(false), 2500); }
-    catch { setError("Couldn't copy. Select the text in the preview and copy it by hand."); }
+  const [pdfBusy, setPdfBusy] = useState(false);
+  async function pdf() {
+    setPdfBusy(true);
+    try { await downloadItineraryPdf({ name: v.name, phone: v.phone, email: v.email }, shortlist); }
+    catch { setError("Couldn't make the PDF. Try again."); }
+    finally { setPdfBusy(false); }
   }
+
 
   const num = (k: string, label: string, value: number, set: (n: number) => void, min: number, max: number) => (
     <div className="field"><label className="lbl" htmlFor={id(k)}>{label}</label>
@@ -208,11 +212,10 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
             ))}
           </ol>
           <div className="vt-head-actions">
-            <button className="btn solid" onClick={() => void copy()}>{copied ? "✓ Copied" : "📋 Copy for customer"}</button>
+            <button className="btn solid" disabled={pdfBusy} onClick={() => void pdf()}>{pdfBusy ? "Making PDF…" : "📄 Download PDF"}</button>
             {(shortlist[0].googleUrl || search?.googleUrl) && <a className="btn" href={shortlist[0].googleUrl || search!.googleUrl} target="_blank" rel="noreferrer">Open in Google Flights ↗</a>}
           </div>
-          <details className="vf-preview"><summary>Preview the text</summary><pre>{shortlistText(v.name, shortlist)}</pre></details>
-          <p className="hint small">Nothing is sent to the customer from here, and nothing is booked: Sunny sends the text and books in Sabre as usual.</p>
+          <p className="hint small">Nothing is sent to the customer from here, and nothing is booked: Sunny sends the PDF and books in Sabre as usual.</p>
         </div>
       )}
 

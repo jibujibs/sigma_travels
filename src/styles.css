@@ -523,7 +523,6 @@ table.tickets td,table.tickets th{padding:6px}
 .vf-short-item{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;border:1px solid var(--teal);border-radius:12px;padding:10px 12px;background:var(--teal-soft)}
 .vf-short-item > div{min-width:0}
 .vf-line{margin:4px 0 0;overflow-wrap:anywhere}
-.vf-preview pre{white-space:pre-wrap;background:var(--sunk);border:1px solid var(--line);border-radius:10px;padding:10px 12px;font-size:13.5px;margin:8px 0 0;overflow-wrap:anywhere}
 @media (max-width:900px){
   .vf-row{grid-template-columns:1fr 1fr;}
   .vf-air{grid-column:1 / -1}

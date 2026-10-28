@@ -4,7 +4,7 @@ import { buildDays, FOOD_LABEL, homeCode, needsList, picks, planNeeds, price, tr
 
 /* Standard PDF fonts only cover Latin-1/Windows-1252. Map what we can, drop the rest. */
 const CP1252_EXTRA = "€‚ƒ„…†‡ˆ‰Š‹ŒŽ‘’“”•–—˜™š›œžŸ";
-function safe(input: string): string {
+export function safe(input: string): string {
   const s = String(input ?? "")
     .replace(/→/g, "->").replace(/←/g, "<-").replace(/₹\s?/g, "Rs ").replace(/[\t\r\n]+/g, " ")
     .replace(/[✓✔]/g, "v").replace(/[≈]/g, "~");
