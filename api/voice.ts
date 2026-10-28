@@ -8,7 +8,7 @@ import { downloadAudio, insertVoice, isMissingColumn, listVoice, signedAudioUrl,
 import { flightsConfigured, returnFlights, searchFlights } from "../server/flights.js";
 import { readTrip, transcribe } from "../server/voice.js";
 import { autoSearchBlockers, queryFromTrip, type FlightQuery, type ShortlistItem, type VoiceFlights } from "../shared/flights.js";
-import { normalizeTrip, withDateCheck, voicePatchSchema, voiceSubmitSchema, type VoiceRequest, type VoiceTrip } from "../shared/voice.js";
+import { normalizeTrip, properName, withDateCheck, voicePatchSchema, voiceSubmitSchema, type VoiceRequest, type VoiceTrip } from "../shared/voice.js";
 
 /**
  * Voice messages for Sunny.
@@ -62,7 +62,7 @@ async function toView(r: VoiceRow): Promise<VoiceRequest> {
   return {
     id: r.id,
     createdAt: r.created_at,
-    name: r.name,
+    name: properName(r.name),
     phone: r.phone ?? "",
     email: r.email ?? "",
     seconds: r.seconds,
