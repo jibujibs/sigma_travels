@@ -224,6 +224,7 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
           <p className="vf-summary">
             <b>{search.options.length} flights</b> · {labelOf(search.query.from)} → {labelOf(search.query.to)} · {niceTime(`${search.query.depart} 00:00`).slice(0, -6)}
             {search.query.return && <> – {niceTime(`${search.query.return} 00:00`).slice(0, -6)}</>} · {travellers(search.query)} · {search.query.cabin}
+            {!search.query.return && <span className="vt-tag">One way</span>}
             {search.auto && <span className="vt-tag">Found automatically</span>}
             {search.priceLevel && <span className={`vf-level ${search.priceLevel}`}>Prices are {search.priceLevel} now{search.typical ? ` (usual ${rupees(search.typical[0])}–${rupees(search.typical[1])})` : ""}</span>}
           </p>
