@@ -531,3 +531,7 @@ table.tickets td,table.tickets th{padding:6px}
   .vf-price{text-align:left}
 }
 @media (max-width:480px){.vf-returns{margin-left:4px}}
+
+/* Demo customer chips on the voice card */
+.demo-people{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0 12px}
+.demo-people .lbl{margin-right:4px}
