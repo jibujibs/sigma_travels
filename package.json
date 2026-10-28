@@ -10,7 +10,8 @@
     "dev": "vite",
     "build": "vite build",
     "typecheck": "tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.server.json --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "samples": "node --env-file=.env.local scripts/make-samples.mjs"
   },
   "dependencies": {
     "@vercel/functions": "3.9.11",

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { DEMO_CUSTOMERS, DEMO_SAMPLES, sampleUrl, type DemoCustomer, type DemoSample } from "./demo";
 import { VOICE_MAX_SECONDS } from "../../shared/voice";
 import { api } from "../lib/api";
 
@@ -28,25 +29,17 @@ function toBase64(blob: Blob): Promise<string> {
  * Customer tab: leave a voice message for Sunny (up to 3 minutes). The recording goes to the server,
  * which keeps it, turns it into text with Gemini and shows it in the Agent tab's "Voice requests".
  */
-/**
- * Demo customers (the site is a demo for the team for now): the form starts filled with the first, and a chip
- * fills in another. Remove these before real customers use this page, or they may send as "Dayalu".
- */
-const DEMO = [
-  { name: "Dayalu", phone: "9999999991", email: "djoseph@jibstech.com" },
-  { name: "Jimson", phone: "9999999992", email: "jimson@jibstech.com" },
-  { name: "Aiswarya", phone: "9999999993", email: "aiswarya@jibstech.com" },
-] as const;
 
 export function VoiceMessage() {
-  const [name, setName] = useState<string>(DEMO[0].name);
-  const [phone, setPhone] = useState<string>(DEMO[0].phone);
-  const [email, setEmail] = useState<string>(DEMO[0].email);
-  const fill = (d: (typeof DEMO)[number]) => { setName(d.name); setPhone(d.phone); setEmail(d.email); setError(undefined); };
+  const [name, setName] = useState<string>(DEMO_CUSTOMERS[0]?.name ?? "");
+  const [phone, setPhone] = useState<string>(DEMO_CUSTOMERS[0]?.phone ?? "");
+  const [email, setEmail] = useState<string>(DEMO_CUSTOMERS[0]?.email ?? "");
+  const fill = (d: DemoCustomer = { name: "", phone: "", email: "" }) => { setName(d.name); setPhone(d.phone); setEmail(d.email); setError(undefined); };
   const [phase, setPhase] = useState<Phase>("idle");
   const [secs, setSecs] = useState(0);
   const [clip, setClip] = useState<{ blob: Blob; url: string; mime: string; seconds: number } | null>(null);
   const [error, setError] = useState<string>();
+  const [sample, setSample] = useState<string>();
   const recRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunks = useRef<Blob[]>([]);
@@ -99,7 +92,25 @@ export function VoiceMessage() {
   }
 
   const stop = () => { if (recRef.current?.state === "recording") recRef.current.stop(); };
-  const again = () => { setClip(null); setPhase("idle"); setSecs(0); setError(undefined); };
+  const again = () => { setClip(null); setPhase("idle"); setSecs(0); setError(undefined); setSample(undefined); };
+
+  /** Loads a sample voice message into the recorder, as if it had just been recorded. */
+  async function loadSample(s: DemoSample) {
+    setError(undefined);
+    try {
+      const res = await fetch(sampleUrl(s));
+      if (!res.ok || !(res.headers.get("content-type") ?? "").includes("audio")) throw new Error("missing");
+      const blob = new Blob([await res.arrayBuffer()], { type: "audio/wav" });
+      const head = new DataView(await blob.slice(0, 44).arrayBuffer());
+      const rate = head.getUint32(24, true) || 24000;
+      const seconds = Math.max(1, Math.min(VOICE_MAX_SECONDS, Math.round((blob.size - 44) / (rate * 2))));
+      setClip({ blob, url: URL.createObjectURL(blob), mime: "audio/wav", seconds });
+      setSample(s.id);
+      setPhase("recorded");
+    } catch {
+      setError("That sample voice isn't available yet. Run npm run samples to make the sample voices.");
+    }
+  }
 
   async function send(e: FormEvent) {
     e.preventDefault();
@@ -125,7 +136,7 @@ export function VoiceMessage() {
         <p className="eyebrow">New trip</p>
         <h2 id="vm-h">✓ Message sent to Sunny</h2>
         <p className="hint">Thank you, {name.trim().split(" ")[0]}. Sunny will listen to your message and contact you {phone ? `on ${phone}` : `at ${email}`} with flight options.</p>
-        <div><button type="button" className="btn" onClick={() => { again(); fill(DEMO[0]); }}>Leave another message</button></div>
+        <div><button type="button" className="btn" onClick={() => { again(); fill(DEMO_CUSTOMERS[0]); }}>Leave another message</button></div>
       </section>
     );
   }
@@ -140,13 +151,13 @@ export function VoiceMessage() {
       </div>
 
       <form className="voice-form" onSubmit={send} noValidate>
-        <div className="demo-people" role="group" aria-label="Demo customer">
+        {DEMO_CUSTOMERS.length > 0 && <div className="demo-people" role="group" aria-label="Demo customer">
           <span className="lbl">Demo customer</span>
-          {DEMO.map((d) => {
+          {DEMO_CUSTOMERS.map((d) => {
             const on = d.name === name && d.phone === phone && d.email === email;
             return <button key={d.name} type="button" className="chip" aria-pressed={on} onClick={() => fill(d)} disabled={busy}>{d.name}</button>;
           })}
-        </div>
+        </div>}
         <div className="voice-fields">
           <div className="field"><label className="lbl" htmlFor="vm-name">Your name</label>
             <input id="vm-name" autoComplete="name" value={name} maxLength={80} onChange={(e) => { setName(e.target.value); setError(undefined); }} disabled={busy} /></div>
@@ -176,6 +187,14 @@ export function VoiceMessage() {
             </>
           )}
         </div>
+        {DEMO_SAMPLES.length > 0 && (phase === "idle" || phase === "recorded") && (
+          <div className="demo-people demo-samples" role="group" aria-label="Sample voice messages">
+            <span className="lbl">Sample voice messages</span>
+            {DEMO_SAMPLES.map((s) => (
+              <button key={s.id} type="button" className="chip" aria-pressed={sample === s.id} onClick={() => void loadSample(s)} disabled={busy}>▶ {s.label}</button>
+            ))}
+          </div>
+        )}
         <p className="sr-only" aria-live="polite">{phase === "recording" ? "Recording started" : phase === "recorded" ? "Recording stopped" : ""}</p>
 
         {error && <p className="err-text" role="alert">{error}</p>}
