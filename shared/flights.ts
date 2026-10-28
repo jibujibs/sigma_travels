@@ -157,21 +157,41 @@ export const timeOnly = (s: string) => (/\s(\d{1,2}:\d{2})/.exec(s)?.[1] ?? s).p
 /** Days between departure and arrival dates (+1 for an overnight flight). */
 export const dayShift = (dep: string, arr: string) => Math.round((Date.parse(arr.slice(0, 10)) - Date.parse(dep.slice(0, 10))) / 864e5);
 
+export interface TopPick { option: FlightOption; reason: string }
+
 /**
- * "⭐ Suggested" marks, with the reason. Simple rules, no AI call (instant and free): the customer's airline,
- * the cheapest, the fastest, and Google's own best pick. Sunny still chooses.
+ * "Top 3 picks": three flights from three different airlines, each with its reason. Simple rules, no AI call
+ * (instant, no extra search): the customer's airline, the cheapest, then Google's best pick or the fastest;
+ * any slot left empty goes to the cheapest other airline that isn't much slower. Sunny still chooses.
  */
-export function suggestions(options: FlightOption[], airline: string): Map<string, string[]> {
-  const out = new Map<string, string[]>();
-  const add = (o: FlightOption | undefined, why: string) => { if (o) out.set(o.id, [...(out.get(o.id) ?? []), why]); };
-  const priced = options.filter((o) => o.price != null);
-  const cheapest = [...priced].sort((a, b) => a.price! - b.price!)[0];
-  add(cheapest, "cheapest");
-  add([...options].sort((a, b) => a.minutes - b.minutes)[0], "fastest");
+export function topThree(options: FlightOption[], airline: string): TopPick[] {
+  const picks: TopPick[] = [];
+  const used = new Set<string>();
+  const byPrice = [...options].sort((a, b) => (a.price ?? Infinity) - (b.price ?? Infinity));
+  const take = (o: FlightOption | undefined, reason: string) => {
+    if (!o || used.has(o.airline) || picks.length >= 3) return;
+    used.add(o.airline);
+    picks.push({ option: o, reason });
+  };
+  const fresh = (list: FlightOption[]) => list.find((o) => !used.has(o.airline));
   const want = airline.trim().toLowerCase();
-  if (want) add([...priced].filter((o) => o.airline.toLowerCase().includes(want)).sort((a, b) => a.price! - b.price!)[0] ?? options.find((o) => o.airline.toLowerCase().includes(want)), `customer asked for ${airline.trim()}`);
-  add(options.find((o) => o.googleBest), "Google's best pick");
-  return out;
+  if (want) {
+    const exact = byPrice.filter((o) => o.airline.toLowerCase() === want);
+    take(exact[0] ?? byPrice.find((o) => o.airline.toLowerCase().includes(want)), `Customer asked for ${airline.trim()}`);
+  }
+  take(fresh(byPrice), "Cheapest");
+  const best = fresh(options.filter((o) => o.googleBest));
+  if (best) take(best, "Google's best pick");
+  else take(fresh([...options].sort((a, b) => a.minutes - b.minutes)), "Fastest");
+  // Empty slots: the cheapest new airline whose flight isn't much slower than the fastest (no 19-hour detours),
+  // then any new airline if that is all there is.
+  const quickest = Math.min(...options.map((o) => o.minutes).filter((m) => m > 0));
+  while (picks.length < 3) {
+    const next = fresh(byPrice.filter((o) => o.minutes <= quickest * 1.5)) ?? fresh(byPrice);
+    if (!next) break;
+    take(next, "Good value");
+  }
+  return picks;
 }
 
 function legLine(o: FlightOption): string {

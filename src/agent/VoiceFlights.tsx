@@ -1,6 +1,6 @@
 import { useMemo, useState, type FormEvent } from "react";
 import {
-  autoSearchBlockers, CABIN_OPTIONS, dayShift, hm, queryFromTrip, rupees, SHORTLIST_MAX, shortlistText, stopsOf, suggestions,
+  autoSearchBlockers, CABIN_OPTIONS, dayShift, hm, queryFromTrip, rupees, SHORTLIST_MAX, shortlistText, stopsOf, topThree,
   timeOnly, travellers, niceTime, type FlightOption, type FlightQuery, type ShortlistItem,
 } from "../../shared/flights";
 import type { VoiceRequest } from "../../shared/voice";
@@ -90,12 +90,14 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
     finally { setBusy(undefined); }
   }
 
-  async function loadReturns(o: FlightOption) {
+  /** `where` keeps the Top 3 card and the full list apart, so the return flights open under the row that was pressed. */
+  async function loadReturns(o: FlightOption, where = "list") {
     if (!search || !o.departureToken) return;
-    if (returns?.forId === o.id) return setReturns(null);
-    setReturns({ forId: o.id, options: null });
-    try { setReturns({ forId: o.id, options: (await api.voice.returnFlights(v.id, search.query, o.departureToken)).returns }); }
-    catch (err) { setReturns({ forId: o.id, options: [], error: (err as Error).message }); }
+    const forId = `${where}:${o.id}`;
+    if (returns?.forId === forId) return setReturns(null);
+    setReturns({ forId, options: null });
+    try { setReturns({ forId, options: (await api.voice.returnFlights(v.id, search.query, o.departureToken)).returns }); }
+    catch (err) { setReturns({ forId, options: [], error: (err as Error).message }); }
   }
 
   async function saveList(next: ShortlistItem[]) {
@@ -106,18 +108,38 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
     finally { setBusy(undefined); }
   }
 
-  const add = (out: FlightOption, back: FlightOption | null) => search && void saveList([...shortlist, {
-    id: `${out.id}|${back?.id ?? ""}`, out, back, price: back ? back.price : out.price, query: search.query, googleUrl: search.googleUrl, addedAt: new Date().toISOString(),
-  }]);
+  const item = (out: FlightOption, back: FlightOption | null): ShortlistItem => ({
+    id: `${out.id}|${back?.id ?? ""}`, out, back, price: back ? back.price : out.price, query: search!.query, googleUrl: search!.googleUrl, addedAt: new Date().toISOString(),
+  });
+  const add = (out: FlightOption, back: FlightOption | null) => search && void saveList([...shortlist, item(out, back)]);
   const inList = (out: FlightOption, back: FlightOption | null) => shortlist.some((s) => s.id === `${out.id}|${back?.id ?? ""}` && s.query.depart === search?.query.depart);
   const full = shortlist.length >= SHORTLIST_MAX;
 
-  const marks = useMemo(() => suggestions(search?.options ?? [], v.trip?.airline ?? ""), [search, v.trip?.airline]);
+  const roundTrip = Boolean(search?.query.return);
+  const top = useMemo(() => topThree(search?.options ?? [], v.trip?.airline ?? ""), [search, v.trip?.airline]);
+  const topReason = useMemo(() => new Map(top.map((t) => [t.option.id, t.reason])), [top]);
+  const topToAdd = top.filter((t) => !inList(t.option, null));
+  // "Add all 3" adds the picks not added yet, as many as Sunny's list still has room for.
+  const addTop = () => search && void saveList([...shortlist, ...topToAdd.slice(0, SHORTLIST_MAX - shortlist.length).map((t) => item(t.option, null))]);
+
+  const returnsPanel = (o: FlightOption, where: string) => returns?.forId === `${where}:${o.id}` && (
+    <div className="vf-returns">
+      <p className="lbl">Return flights with this one · price is for the whole trip</p>
+      {returns.options === null ? <p className="hint small"><span className="spin" aria-hidden="true" /> Loading return flights…</p>
+        : returns.error ? <p className="err-text">{returns.error}</p>
+        : returns.options.length === 0 ? <p className="note small">No return flights found for this one.</p>
+        : <ol className="vf-list">{returns.options.map((b) => (
+          <li key={b.id}><FlightRow o={b}>
+            <button className="btn solid small-btn" disabled={busy === "save" || full || inList(o, b)} onClick={() => add(o, b)}>{inList(o, b) ? "✓ Added" : "+ Add"}</button>
+          </FlightRow></li>))}</ol>}
+    </div>);
+  const action = (o: FlightOption, where: string) => roundTrip
+    ? <button className="btn small-btn" onClick={() => void loadReturns(o, where)} aria-expanded={returns?.forId === `${where}:${o.id}`}>{returns?.forId === `${where}:${o.id}` ? "Hide return flights" : "Choose return →"}</button>
+    : <button className="btn solid small-btn" disabled={busy === "save" || full || inList(o, null)} onClick={() => add(o, null)}>{inList(o, null) ? "✓ Added" : "+ Add"}</button>;
   const airlines = useMemo(() => [...new Set((search?.options ?? []).map((o) => o.airline))].sort(), [search]);
   const shown = useMemo(() => (search?.options ?? [])
     .filter((o) => (!nonstopOnly || stopsOf(o) === 0) && (!airline || o.airline === airline))
     .sort(sorters[sort]), [search, nonstopOnly, airline, sort]);
-  const roundTrip = Boolean(search?.query.return);
 
   async function copy() {
     try { await navigator.clipboard.writeText(shortlistText(v.name, shortlist)); setCopied(true); window.setTimeout(() => setCopied(false), 2500); }
@@ -206,6 +228,27 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
 
           {search.options.length === 0 ? <p className="note">Google Flights found no flights for these details. Try another date, airport or Stops: Any.</p> : (
             <>
+              {top.length > 0 && (
+                <div className="vf-top" aria-label="Top picks">
+                  <div className="vf-top-head">
+                    <h4>Top {top.length} picks · {top.length} airline{top.length > 1 ? "s" : ""}</h4>
+                    {!roundTrip && top.length > 1 && (
+                      <button className="btn solid small-btn" disabled={busy === "save" || full || topToAdd.length === 0} onClick={addTop}>
+                        {topToAdd.length === 0 ? "✓ All added" : topToAdd.length === top.length ? `Add all ${top.length}` : `Add the other ${topToAdd.length}`}
+                      </button>)}
+                  </div>
+                  <p className="hint small">One each from different airlines, so the customer has a real choice. Suggestions only: Sunny decides.</p>
+                  <ol className="vf-list">
+                    {top.map((t) => (
+                      <li key={t.option.id}>
+                        <FlightRow o={t.option} why={t.reason}>{action(t.option, "top")}</FlightRow>
+                        {returnsPanel(t.option, "top")}
+                      </li>))}
+                  </ol>
+                  {roundTrip && <p className="hint small">Return trip: press Choose return on a pick, then + Add the return flight.</p>}
+                </div>)}
+
+              <h4 className="vf-all-head">All flights</h4>
               <div className="vf-tools">
                 <div className="vf-sort" role="group" aria-label="Sort flights">
                   {(["best", "price", "duration", "depart"] as Sort[]).map((s) => (
@@ -223,22 +266,8 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
               <ol className="vf-list">
                 {(showAll ? shown : shown.slice(0, PAGE)).map((o) => (
                   <li key={o.id}>
-                    <FlightRow o={o} why={marks.get(o.id)}>
-                      {roundTrip
-                        ? <button className="btn small-btn" onClick={() => void loadReturns(o)} aria-expanded={returns?.forId === o.id}>{returns?.forId === o.id ? "Hide return flights" : "Choose return →"}</button>
-                        : <button className="btn solid small-btn" disabled={busy === "save" || full || inList(o, null)} onClick={() => add(o, null)}>{inList(o, null) ? "✓ Added" : "+ Add"}</button>}
-                    </FlightRow>
-                    {returns?.forId === o.id && (
-                      <div className="vf-returns">
-                        <p className="lbl">Return flights with this one · price is for the whole trip</p>
-                        {returns.options === null ? <p className="hint small"><span className="spin" aria-hidden="true" /> Loading return flights…</p>
-                          : returns.error ? <p className="err-text">{returns.error}</p>
-                          : returns.options.length === 0 ? <p className="note small">No return flights found for this one.</p>
-                          : <ol className="vf-list">{returns.options.map((b) => (
-                            <li key={b.id}><FlightRow o={b}>
-                              <button className="btn solid small-btn" disabled={busy === "save" || full || inList(o, b)} onClick={() => add(o, b)}>{inList(o, b) ? "✓ Added" : "+ Add"}</button>
-                            </FlightRow></li>))}</ol>}
-                      </div>)}
+                    <FlightRow o={o} tag={topReason.has(o.id) ? "Top pick" : undefined}>{action(o, "list")}</FlightRow>
+                    {returnsPanel(o, "list")}
                   </li>
                 ))}
               </ol>
@@ -262,16 +291,18 @@ function FlightLine({ o, label }: { o: FlightOption; label?: string }) {
   );
 }
 
-function FlightRow({ o, why, children }: { o: FlightOption; why?: string[]; children: React.ReactNode }) {
+/** `why` = the reason on a Top 3 pick; `tag` = "Top pick" on the same flight in the full list. */
+function FlightRow({ o, why, tag, children }: { o: FlightOption; why?: string; tag?: string; children: React.ReactNode }) {
   const a = o.legs[0], z = o.legs[o.legs.length - 1], plus = dayShift(a.dep, z.arr);
   return (
-    <div className={`vf-row${why ? " suggested" : ""}`}>
+    <div className={`vf-row${tag ? " suggested" : ""}`}>
       <div className="vf-air">
         {o.logo && <img src={o.logo} alt="" width={28} height={28} loading="lazy" />}
         <div>
           <b>{o.airline}</b>
           <span className="hint small">{o.legs.map((l) => l.flightNo).join(" / ")}</span>
-          {why && <span className="vf-why">⭐ Suggested: {why.join(", ")}</span>}
+          {why && <span className="vf-why">⭐ {why}</span>}
+          {tag && <span className="vf-why">⭐ {tag}</span>}
         </div>
       </div>
       <div className="vf-times">

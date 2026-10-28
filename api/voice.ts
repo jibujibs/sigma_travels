@@ -6,7 +6,7 @@ import { originOf } from "../server/payments.js";
 import { downloadAudio, insertVoice, isMissingColumn, listVoice, signedAudioUrl, updateVoice, uploadAudio, voiceById, type VoiceRow } from "../server/supabase.js";
 import { flightsConfigured, returnFlights, searchFlights } from "../server/flights.js";
 import { readTrip, transcribe } from "../server/voice.js";
-import { autoSearchBlockers, queryFromTrip, rupees, type ShortlistItem, type VoiceFlights } from "../shared/flights.js";
+import { autoSearchBlockers, queryFromTrip, rupees, timeOnly, topThree, type ShortlistItem, type VoiceFlights } from "../shared/flights.js";
 import { normalizeTrip, tripLine, withDateCheck, voicePatchSchema, voiceSubmitSchema, type VoiceRequest, type VoiceTrip } from "../shared/voice.js";
 
 /**
@@ -118,7 +118,7 @@ async function processVoice(row: VoiceRow, audio: string, mime: string, origin: 
       `${row.name} left a ${mins} voice message on Sigma Travels.`,
       [row.phone && `Phone: ${row.phone}`, row.email && `Email: ${row.email}`].filter(Boolean).join("\n"),
       row.transcript_en ? `What they said${row.language && row.language !== "English" ? ` (translated from ${row.language})` : ""}:\n"${row.transcript_en}"` : row.error ?? "The message couldn't be turned into text; listen to it on the Agent Desk.",
-      flightLine(row),
+      flightLine(row, trip),
       trip ? `Trip: ${tripLine(trip)}${trip.budget ? `\nBudget: ${trip.budget}` : ""}${trip.notes ? `\nNotes: ${trip.notes}` : ""}\nStill to ask: ${trip.missing.join(", ") || "nothing"}` : "",
     ].filter(Boolean),
     `${origin}/`,
@@ -146,12 +146,21 @@ async function autoFlights(row: VoiceRow, trip: VoiceTrip | null): Promise<Voice
   return (await saveFlights(row.id, flights).catch(() => null)) ?? row;
 }
 
-/** One email line about the flights found, e.g. "Flights: 34 found on Google Flights, cheapest ₹27,900 (IndiGo)". */
-function flightLine(row: VoiceRow): string {
+/**
+ * Email lines about the flights found: the count and cheapest fare, then the Top 3 picks (three airlines), e.g.
+ * "Flights: 9 found on Google Flights, cheapest ₹34,894 (IndiGo)" + "Top 3 picks: …".
+ */
+function flightLine(row: VoiceRow, trip: VoiceTrip | null): string {
   const s = flightsOf(row)?.search;
   if (!s) return "";
+  if (!s.options.length) return "Flights: none found on Google Flights for these details.";
   const cheapest = s.options.filter((o) => o.price != null).sort((a, b) => a.price! - b.price!)[0];
-  return s.options.length ? `Flights: ${s.options.length} found on Google Flights${cheapest ? `, cheapest ${rupees(cheapest.price)} (${cheapest.airline})` : ""}. Open the Agent Desk to compare and choose.` : "Flights: none found on Google Flights for these details.";
+  const top = topThree(s.options, trip?.airline ?? "");
+  const picks = top.map((t, i) => `${i + 1}. ${t.option.airline} ${timeOnly(t.option.legs[0].dep)}, ${t.option.layovers.length ? `${t.option.layovers.length} stop` : "nonstop"}, ${rupees(t.option.price)} (${t.reason.charAt(0).toLowerCase() + t.reason.slice(1)})`);
+  return [
+    `Flights: ${s.options.length} found on Google Flights${cheapest ? `, cheapest ${rupees(cheapest.price)} (${cheapest.airline})` : ""}. Open the Agent Desk to compare and choose.`,
+    picks.length ? `Top ${picks.length} picks:\n${picks.join("\n")}` : "",
+  ].filter(Boolean).join("\n");
 }
 
 export const POST = handle(async (request) => {
