@@ -25,26 +25,14 @@ const sameNeeds = (a: Needs, b: Needs) => a.flights === b.flights && a.hotel ===
 const needsText = (n: Needs) => needsList(n).join(" and ").toLowerCase();
 type Place = Pick<Recommendation, "city" | "country" | "airport">;
 
-/** Only the traveller's preferences survive a refresh; results always start empty. */
-interface Prefs { origin: string; start: string; days: number; pax: number; budget: TripBrief["budget"] }
-
+/**
+ * The planner starts fresh on every load: empty "Where to?", the default dates, days, travellers and budget,
+ * and no results. Nothing from an earlier search is restored. (Older versions kept the last search's form
+ * values in this browser under STORE; they are removed on load.)
+ */
 function loadBrief(): TripBrief {
-  const brief = defaultBrief();
-  try {
-    const raw = JSON.parse(localStorage.getItem(STORE) ?? "null") as (Partial<Prefs> & { brief?: Partial<Prefs> }) | null;
-    const p = raw?.brief ?? raw; // older versions saved { brief, recs, planState, ... }
-    if (!p) return brief;
-    return {
-      ...brief,
-      origin: typeof p.origin === "string" && p.origin.trim() ? p.origin : brief.origin,
-      start: typeof p.start === "string" && p.start >= iso(todayUTC()) ? p.start : brief.start,
-      days: Number(p.days) >= 1 && Number(p.days) <= 10 ? Number(p.days) : brief.days,
-      pax: Number(p.pax) >= 1 && Number(p.pax) <= 6 ? Number(p.pax) : brief.pax,
-      budget: p.budget === "Budget" || p.budget === "Luxury" || p.budget === "Mid-range" ? p.budget : brief.budget,
-    };
-  } catch {
-    return brief;
-  }
+  try { localStorage.removeItem(STORE); } catch { /* storage blocked: nothing to clear */ }
+  return defaultBrief();
 }
 
 type Busy = { label: string; startedAt: number } | null;
@@ -106,11 +94,6 @@ export default function App({ user, onSaveHomeAirport, onSignOut, nav, brand }: 
   }, [guestId]);
 
   useEffect(() => { void refreshTrips(); }, [refreshTrips]);
-
-  useEffect(() => {
-    const prefs: Prefs = { origin: brief.origin, start: brief.start, days: brief.days, pax: brief.pax, budget: brief.budget };
-    try { localStorage.setItem(STORE, JSON.stringify(prefs)); } catch { /* storage full or blocked */ }
-  }, [brief.origin, brief.start, brief.days, brief.pax, brief.budget]);
 
   useEffect(() => {
     if (!busy) return;

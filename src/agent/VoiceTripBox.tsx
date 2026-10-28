@@ -36,6 +36,8 @@ export function VoiceTripBox({ v, onChange, onOpenPlanner }: Props) {
   const [busy, setBusy] = useState<"read" | "save">();
   const [error, setError] = useState<string>();
   const t = v.trip;
+  // Once flight results are shown, the trip is no longer edited here: Sunny changes the search in the Flights box.
+  const hasResults = Boolean(v.flights?.search);
 
   async function readAgain() {
     setBusy("read");
@@ -63,7 +65,7 @@ export function VoiceTripBox({ v, onChange, onOpenPlanner }: Props) {
         <h3>✈ Trip details{t?.edited && <span className="vt-tag">Edited</span>}</h3>
         <div className="vt-head-actions">
           {v.english && <button className="btn small-btn" onClick={() => void readAgain()} disabled={!!busy}>{busy === "read" ? "Reading…" : t ? "Read again" : "Read trip details"}</button>}
-          <button className="btn small-btn" onClick={() => setEditing(true)} disabled={!!busy}>✏ Edit</button>
+          {!hasResults && <button className="btn small-btn" onClick={() => setEditing(true)} disabled={!!busy}>✏ Edit</button>}
         </div>
       </div>
 
@@ -92,7 +94,7 @@ export function VoiceTripBox({ v, onChange, onOpenPlanner }: Props) {
           <div><button className="btn solid small-btn" onClick={() => onOpenPlanner(t)} disabled={!t.to}>✈ Open in AI Trip Planner</button></div>
         </>
       ) : (
-        <p className="hint small">{v.english ? "No trip details were found in this message. Press Edit to add them after talking to the customer." : "Trip details appear once the message has text."}</p>
+        <p className="hint small">{v.english ? (hasResults ? "No trip details were found in this message. Change the search in Flights below." : "No trip details were found in this message. Press Edit to add them after talking to the customer.") : "Trip details appear once the message has text."}</p>
       )}
       {error && <p className="err-text" role="alert">{error}</p>}
     </section>
