@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
 import { api, type ChatMsg } from "../lib/api";
-import { getThreadId, newThreadId } from "../lib/guest";
+import { newThreadId } from "../lib/guest";
 
 interface Props {
   guestId: string;
@@ -30,7 +30,8 @@ function formatReply(text: string): ReactNode {
 
 export function CopilotDrawer({ guestId, getContext, hasPlan, raised }: Props) {
   const [open, setOpen] = useState(false);
-  const [threadId, setThreadId] = useState(getThreadId);
+  // A fresh conversation each time the planner loads: no old chat shows up. (New chat still starts another.)
+  const [threadId, setThreadId] = useState(newThreadId);
   const [msgs, setMsgs] = useState<ChatMsg[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [input, setInput] = useState("");

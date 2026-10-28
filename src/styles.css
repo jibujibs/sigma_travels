@@ -432,9 +432,19 @@ table.tickets td,table.tickets th{padding:6px}
 .vi-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
 .vi-name{font-size:18px}
 .vi-status select{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-height:42px;color:var(--ink)}
-.vi-text{margin:0;border-left:3px solid var(--teal);padding:4px 0 4px 14px;display:grid;gap:8px}
+.vi-text{margin:0;display:grid;gap:10px}
 .vi-text p{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
-.vi-text details summary{cursor:pointer;color:var(--muted);font-size:14px}
+.vi-text section{display:grid;gap:4px}
+.vi-label{font-size:11.5px !important;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+/* Original words: blue label and a blue rule beside them */
+.vi-orig{border-left:3px solid #2f7fd8;padding:2px 0 2px 14px}
+.vi-label.orig{color:#2f7fd8}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .vi-orig{border-left-color:#5aa7ff}:root:not([data-theme="light"]) .vi-label.orig{color:#5aa7ff}}
+:root[data-theme="dark"] .vi-orig{border-left-color:#5aa7ff}:root[data-theme="dark"] .vi-label.orig{color:#5aa7ff}
+/* English translation: yellow highlight, dark text so it reads in light and dark mode */
+.vi-trans{background:#fff3b8;border:1px solid #f0cf4a;border-radius:10px;padding:10px 14px}
+.vi-trans p{color:#2b2400}
+.vi-trans .vi-label{color:#7a5c00}
 .vi-actions{display:flex;gap:10px;flex-wrap:wrap}
 .vi-actions .btn{text-decoration:none;display:inline-flex;align-items:center}
 @media (max-width:640px){.voice-fields{grid-template-columns:1fr}.send-btn,.mic-btn{width:100%;justify-content:center}.vi-actions .btn{flex:1;justify-content:center}}

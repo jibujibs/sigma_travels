@@ -104,12 +104,27 @@ export function VoiceInbox({ onOpenPlanner }: { onOpenPlanner: (trip: VoiceTrip,
             {v.processing ? (
               <p className="vi-processing" role="status"><span className="spin" aria-hidden="true" /> Turning the voice into text… You can listen to it already.</p>
             ) : v.english ? (
-              <blockquote className="vi-text">
-                <p>{v.english}</p>
-                {v.transcript && v.transcript !== v.english && (
-                  <details><summary>Original ({v.language || "as spoken"})</summary><p lang="und">{v.transcript}</p></details>
-                )}
-              </blockquote>
+              // The customer's own words first (blue label), then the English translation highlighted in yellow.
+              // Both always visible; an English message is shown once, with nothing to translate.
+              v.transcript && v.transcript !== v.english ? (
+                <div className="vi-text">
+                  <section className="vi-orig" aria-label="Original message">
+                    <p className="vi-label orig">Original · {v.language || "as spoken"}</p>
+                    <p lang="und">{v.transcript}</p>
+                  </section>
+                  <section className="vi-trans" aria-label="English translation">
+                    <p className="vi-label">English translation</p>
+                    <p>{v.english}</p>
+                  </section>
+                </div>
+              ) : (
+                <div className="vi-text">
+                  <section className="vi-orig" aria-label="Message">
+                    <p className="vi-label orig">Message · {v.language || "English"}</p>
+                    <p>{v.english}</p>
+                  </section>
+                </div>
+              )
             ) : (
               <div className="vi-failed">
                 <p className="warn-text small">{v.error ?? "No text yet."}{v.audioUrl ? " Listen to the recording above." : ""}</p>
