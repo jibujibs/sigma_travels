@@ -40,7 +40,8 @@ async function speak(model, s) {
   const res = await fetch(`${API}/models/${model}:generateContent`, {
     method: "POST", headers,
     body: JSON.stringify({
-      contents: [{ parts: [{ text: `Say this naturally, like a customer leaving a voice message for a travel agent:\n${s.text}` }] }],
+      // Only the words to say: any instruction in the text would be spoken aloud too.
+      contents: [{ parts: [{ text: s.text }] }],
       generationConfig: { responseModalities: ["AUDIO"], speechConfig: { voiceConfig: { prebuiltVoiceConfig: { voiceName: s.voice } } } },
     }),
   });

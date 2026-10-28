@@ -16,7 +16,8 @@ export const DEMO_CUSTOMERS: readonly DemoCustomer[] = [
 /**
  * Sample voice messages (AI voices made once with `npm run samples`, saved in public/samples/).
  * A chip loads one into the recorder, so the whole flow can be shown without speaking.
- * `text` is what the voice says; scripts/make-samples.mjs reads this list.
+ * `text` is what the voice says (only the words; nothing else, or it is spoken too); `voice`: Puck or Charon
+ * (male), Kore or Aoede (female). scripts/make-samples.mjs reads this list: change it, then run npm run samples.
  */
 export const DEMO_SAMPLES: readonly DemoSample[] = [
   {
@@ -24,8 +25,8 @@ export const DEMO_SAMPLES: readonly DemoSample[] = [
     text: "Hi Sunny, this is a request for two adults from Kochi to Dubai on December 20th, coming back on the 27th. We prefer Emirates. Please call me back. Thank you.",
   },
   {
-    id: "doha-ml", label: "Kochi → Doha · മലയാളം", voice: "Kore",
-    text: "ഹലോ സണ്ണി, ഞാനും എന്റെ ഭാര്യയും ഡിസംബർ പതിനെട്ടിന് കൊച്ചിയിൽ നിന്ന് ദോഹയിലേക്ക് പോകാൻ ആഗ്രഹിക്കുന്നു. ജനുവരി രണ്ടിന് തിരിച്ചു വരണം. ഖത്തർ എയർവേയ്സ് ആണെങ്കിൽ നല്ലത്. ദയവായി എന്നെ തിരിച്ചു വിളിക്കൂ. നന്ദി.",
+    id: "doha-ml", label: "Kochi → Doha · Malayalam", voice: "Kore",
+    text: "ഹലോ സണ്ണി, ഞാനും എന്റെ അമ്മയും ഡിസംബർ പതിനെട്ടിന് കൊച്ചിയിൽ നിന്ന് ദോഹയിലേക്ക് പോകാൻ ആഗ്രഹിക്കുന്നു. ജനുവരി രണ്ടിന് തിരിച്ചു വരണം. ഖത്തർ എയർവേയ്സ് ആണെങ്കിൽ നല്ലത്. ദയവായി എന്നെ തിരിച്ചു വിളിക്കൂ. നന്ദി.",
   },
   {
     id: "sfo-en", label: "San Francisco → Kochi · 4 adults", voice: "Charon",
