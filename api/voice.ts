@@ -63,6 +63,13 @@ const tripOf = (r: VoiceRow): VoiceTrip | null => normalizeTrip(r.trip, Boolean(
 /** Background work gets this long before the inbox stops showing "processing" and offers Try again. */
 const PROCESSING_MS = 3 * 60_000;
 const isProcessing = (r: VoiceRow) => !r.transcript_en && !r.error && Date.now() - Date.parse(r.created_at) < PROCESSING_MS;
+/** Text is ready and the automatic flight search is still running in the background (the inbox keeps checking). */
+function isSearching(r: VoiceRow): boolean {
+  if (!r.transcript_en || r.error || !flightsConfigured() || !("flights" in r)) return false;
+  const trip = tripOf(r), f = flightsOf(r);
+  if (!trip || autoSearchBlockers(trip, today()).length || f?.search || f?.note) return false;
+  return Date.now() - Date.parse(r.created_at) < PROCESSING_MS;
+}
 
 async function toView(r: VoiceRow): Promise<VoiceRequest> {
   return {
@@ -79,6 +86,7 @@ async function toView(r: VoiceRow): Promise<VoiceRequest> {
     status: r.status,
     ...(r.error ? { error: r.error } : !r.transcript_en && !isProcessing(r) ? { error: "The voice wasn't turned into text. Press Try again." } : {}),
     processing: isProcessing(r),
+    searching: isSearching(r),
     trip: withDateCheck(tripOf(r), r.created_at),
     tripSaved: "trip" in r,
     flights: flightsOf(r),

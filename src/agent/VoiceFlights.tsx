@@ -174,6 +174,7 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
       <div className="vt-head"><h3>✈ Flights <span className="vf-sub">real fares from Google Flights</span></h3></div>
 
       {!v.flightsSaved && <p className="note small">Search results and Sunny's options aren't kept yet: run <code>alter table public.voice_requests add column if not exists flights jsonb;</code> in the Supabase SQL Editor.</p>}
+      {!search && v.searching && <p className="vf-finding" role="status"><span className="spin" aria-hidden="true" /> Finding flights on Google Flights… the Top 3 will appear here by itself.</p>}
       {!search && blockers.length > 0 && <p className="vt-missing" role="note">⚠ Not searched yet. Confirm with the customer: {blockers.join(", ")}. Then fill in below and press Search.</p>}
       {!search && v.flights?.note && <p className="warn-text small">{v.flights.note}</p>}
 
@@ -201,7 +202,7 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
         </div>
         {travellersNotSaid && <p className="hint small">The customer didn't say how many are travelling; prices are for the travellers chosen here.</p>}
         <div className="vt-head-actions">
-          <button type="submit" className="btn solid" disabled={!!busy}>{busy === "search" ? "Searching Google Flights…" : search ? "Search again" : "Search flights"}</button>
+          <button type="submit" className="btn solid" disabled={!!busy || (!search && v.searching)}>{busy === "search" ? "Searching Google Flights…" : !search && v.searching ? "Finding flights…" : search ? "Search again" : "Search flights"}</button>
           <span className="hint small">Each search uses 1 of the month's SerpApi searches.</span>
         </div>
       </form>

@@ -10,6 +10,7 @@ import { Brand } from "./components/Brand";
 import { ContactFooter, TalkToSunny } from "./components/ContactFooter";
 import { HomeAirport } from "./components/HomeAirport";
 import type { Profile } from "./lib/api";
+import type { VoiceTrip } from "../shared/voice";
 
 type View = "agent" | "customer" | "planner";
 const PATHS: Record<View, string> = { agent: "/", customer: "/customer", planner: "/planner" };
@@ -85,9 +86,35 @@ export function Workspace({ user, onSaveHomeAirport, onSignOut }: Props) {
           onSave={async (a) => { await onSaveHomeAirport(a); setEditAirport(false); }} />
       )}
       {view === "agent"
-        ? <><PnrDesk agentName={user.name} /><VoiceInbox onOpenPlanner={(trip, from) => { setPlannerPrefill({ trip, from }); go("planner"); }} /></>
+        ? <AgentDesk agentName={user.name} onOpenPlanner={(trip, from) => { setPlannerPrefill({ trip, from }); go("planner"); }} />
         : <div className="cust-grid"><VoiceMessage /><ManageBooking /><TalkToSunny /></div>}
       <ContactFooter />
+    </div>
+  );
+}
+
+type DeskTab = "voice" | "sabre";
+const DESK_TAB_KEY = "sigma-desk-tab";
+
+/** Agent tab: two sub-tabs, Voice requests (first) and Sabre payments. Both stay mounted so the inbox keeps checking for new messages. */
+function AgentDesk({ agentName, onOpenPlanner }: { agentName: string; onOpenPlanner: (trip: VoiceTrip, from: string) => void }) {
+  const [tab, setTab] = useState<DeskTab>(() => {
+    try { return localStorage.getItem(DESK_TAB_KEY) === "sabre" ? "sabre" : "voice"; } catch { return "voice"; }
+  });
+  const [fresh, setFresh] = useState(0);
+  const pick = (t: DeskTab) => { setTab(t); try { localStorage.setItem(DESK_TAB_KEY, t); } catch { /* private mode */ } };
+  return (
+    <div className="agent-desk">
+      <div className="desk-tabs" role="tablist" aria-label="Agent desk">
+        <button role="tab" id="dt-voice" aria-controls="dp-voice" aria-selected={tab === "voice"} onClick={() => pick("voice")}>
+          <span aria-hidden="true">🎙</span> Voice requests {fresh > 0 && <span className="badge warn">{fresh} new</span>}
+        </button>
+        <button role="tab" id="dt-sabre" aria-controls="dp-sabre" aria-selected={tab === "sabre"} onClick={() => pick("sabre")}>
+          <span aria-hidden="true">💳</span> Sabre payments
+        </button>
+      </div>
+      <div role="tabpanel" id="dp-voice" aria-labelledby="dt-voice" hidden={tab !== "voice"}><VoiceInbox onOpenPlanner={onOpenPlanner} onNewCount={setFresh} /></div>
+      <div role="tabpanel" id="dp-sabre" aria-labelledby="dt-sabre" hidden={tab !== "sabre"}><PnrDesk agentName={agentName} /></div>
     </div>
   );
 }

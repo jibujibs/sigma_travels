@@ -53,6 +53,8 @@ export interface VoiceRequest {
   error?: string;
   /** True while the voice is still being turned into text (it runs after the customer is told "sent"). */
   processing: boolean;
+  /** True while the automatic Google Flights search for this message is still running. */
+  searching?: boolean;
   /** Trip details read from the message (null: none described, or not read yet). */
   trip: VoiceTrip | null;
   /** False when the trip column hasn't been added in Supabase yet (run supabase/voice_requests.sql). */
