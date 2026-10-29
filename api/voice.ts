@@ -1,6 +1,7 @@
 import { waitUntil } from "@vercel/functions";
 import { requireUser } from "../server/auth.js";
-import { canEmailAnyone, sendEmail } from "../server/email.js";
+import { canEmailAnyone, sendEmail, type Attachment } from "../server/email.js";
+import { buildItineraryPdf } from "../shared/itineraryPdf.js";
 import { voiceEmail } from "../server/voiceEmail.js";
 import { customerPdfEmail, SIGMA } from "../server/customerEmail.js";
 import { handle, HttpError, json, parseBody } from "../server/http.js";
@@ -8,7 +9,7 @@ import { originOf } from "../server/payments.js";
 import { downloadAudio, insertVoice, isMissingColumn, listVoice, signedAudioUrl, updateVoice, uploadAudio, voiceById, type VoiceRow } from "../server/supabase.js";
 import { flightsConfigured, returnFlights, searchFlights } from "../server/flights.js";
 import { readTrip, transcribe } from "../server/voice.js";
-import { autoSearchBlockers, queryFromTrip, type FlightQuery, type ShortlistItem, type VoiceFlights } from "../shared/flights.js";
+import { autoSearchBlockers, queryFromTrip, topThree, type FlightQuery, type ShortlistItem, type VoiceFlights } from "../shared/flights.js";
 import { normalizeTrip, properName, withDateCheck, voicePatchSchema, voiceSubmitSchema, type VoiceRequest, type VoiceTrip } from "../shared/voice.js";
 
 /**
@@ -116,10 +117,41 @@ async function processVoice(row: VoiceRow, audio: string, mime: string, origin: 
   row = await autoFlights(row, trip);
   if (!notify) return row;
 
-  // Tell Sunny by email. Best effort: the message is already in Sunny's inbox.
-  const mail = await sendEmail(voiceEmail(row, trip, flightsOf(row), `${origin}/`, `${origin}/sigma-logo.png`));
+  // Tell Sunny (and the team on CC) by email, with the Top 3 itinerary PDF attached when flights were found.
+  // Best effort: the message is already in Sunny's inbox.
+  const pdf = await top3Pdf(row, trip, origin);
+  const mail = await sendEmail({
+    ...voiceEmail(row, trip, flightsOf(row), `${origin}/`, `${origin}/sigma-logo.png`, Boolean(pdf)),
+    ...(pdf ? { attachments: [pdf] } : {}),
+  });
   if (!mail.ok) console.warn(`[voice] email not sent: ${mail.reason}`);
   return row;
+}
+
+/**
+ * The same itinerary PDF Sunny can download, made on the server for the automatic Top 3 picks (one per airline).
+ * Never throws: without flights, or if anything fails, the email simply goes without it.
+ */
+async function top3Pdf(row: VoiceRow, trip: VoiceTrip | null, origin: string): Promise<Attachment | null> {
+  try {
+    const s = flightsOf(row)?.search;
+    if (!s?.options.length) return null;
+    const items: ShortlistItem[] = topThree(s.options, trip?.airline ?? "").map((t) => ({
+      id: `${t.option.id}|`, out: t.option, back: null, price: t.option.price, query: s.query, googleUrl: s.googleUrl, addedAt: s.at,
+    }));
+    const png = await fetch(`${origin}/sigma-logo.png`, { signal: AbortSignal.timeout(5_000) })
+      .then(async (r) => (r.ok && (r.headers.get("content-type") ?? "").includes("png") ? new Uint8Array(await r.arrayBuffer()) : null))
+      .catch(() => null);
+    const { bytes } = await buildItineraryPdf(
+      { name: properName(row.name), phone: row.phone ?? "", email: row.email ?? "" }, items,
+      { logo: png, note: s.query.return ? "Prices are for the whole round trip; the return flight is chosen when booking." : undefined },
+    );
+    const first = (properName(row.name).split(" ")[0] || "customer").replace(/[^A-Za-z0-9]+/g, "");
+    return { filename: `Sigma-Top3-${first}-${s.query.depart}.pdf`, content: Buffer.from(bytes), contentType: "application/pdf" };
+  } catch (e) {
+    console.warn(`[voice] Top 3 PDF not made for ${row.id}: ${e instanceof Error ? e.message : String(e)}`);
+    return null;
+  }
 }
 
 /**
