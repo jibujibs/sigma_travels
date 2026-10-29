@@ -535,3 +535,11 @@ table.tickets td,table.tickets th{padding:6px}
 /* Demo customer chips on the voice card */
 .demo-people{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:4px 0 12px}
 .demo-people .lbl{margin-right:4px}
+
+/* Email PDF to customer (Sunny's options) */
+.vt-head-actions .ep-box,.vt-head-actions .ep-sent{flex:1 1 100%;width:100%;max-width:none;order:9}
+.ep-box{display:grid;gap:10px;border:1px solid var(--line);background:var(--sunk);border-radius:14px;padding:14px}
+.ep-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ep-box textarea{width:100%;resize:vertical;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.ep-sent{color:var(--ok);margin:0}
+@media (max-width:640px){.ep-fields{grid-template-columns:1fr}}

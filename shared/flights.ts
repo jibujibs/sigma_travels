@@ -99,7 +99,11 @@ export interface VoiceFlights {
   /** Why the last automatic search didn't run or failed (shown to Sunny). */
   note?: string;
   shortlist: ShortlistItem[];
+  /** Each time Sunny emailed the itinerary PDF to the customer. */
+  emailed?: EmailedPdf[];
 }
+
+export interface EmailedPdf { to: string; cc: string[]; at: string; options: number }
 
 export const SHORTLIST_MAX = 5;
 

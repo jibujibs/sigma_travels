@@ -7,6 +7,7 @@ import type { VoiceRequest } from "../../shared/voice";
 import { api } from "../lib/api";
 import { AIRPORTS } from "../lib/airports";
 import { downloadItineraryPdf } from "./itineraryPdf";
+import { EmailPdf } from "./EmailPdf";
 
 type Sort = "best" | "price" | "duration" | "depart";
 const PAGE = 12;
@@ -223,10 +224,11 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
             ))}
           </ol>
           <div className="vt-head-actions">
-            <button className="btn solid" disabled={pdfBusy} onClick={() => void pdf()}>{pdfBusy ? "Making PDF…" : "📄 Download PDF"}</button>
+            <EmailPdf v={v} shortlist={shortlist} onChange={onChange} />
+            <button className="btn" disabled={pdfBusy} onClick={() => void pdf()}>{pdfBusy ? "Making PDF…" : "📄 Download PDF"}</button>
             {(shortlist[0].googleUrl || search?.googleUrl) && <a className="btn" href={shortlist[0].googleUrl || search!.googleUrl} target="_blank" rel="noreferrer">Open in Google Flights ↗</a>}
           </div>
-          <p className="hint small">Nothing is sent to the customer from here, and nothing is booked: Sunny sends the PDF and books in Sabre as usual.</p>
+          <p className="hint small">Nothing is booked from here: Sunny emails or downloads the PDF, then books in Sabre as usual.</p>
         </div>
       )}
 

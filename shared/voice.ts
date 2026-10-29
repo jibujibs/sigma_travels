@@ -6,6 +6,8 @@ import { airportFor } from "./airports.js";
 export const VOICE_MAX_SECONDS = 180;
 /** Base64 size cap (a 3-minute Opus/AAC recording is about 1–2 MB; Vercel accepts request bodies up to 4.5 MB). */
 export const VOICE_MAX_BASE64 = 4_000_000;
+/** Itinerary PDFs are ~50–200 KB; this keeps a request well under Vercel's 4.5 MB body limit. */
+export const PDF_MAX_BASE64 = 3_000_000;
 
 export type VoiceStatus = "new" | "contacted" | "ticketed" | "closed";
 export const VOICE_STATUSES: VoiceStatus[] = ["new", "contacted", "ticketed", "closed"];
@@ -154,6 +156,14 @@ export const voicePatchSchema = z.union([
   z.object({ id: z.string().uuid(), action: z.literal("save-trip"), trip: z.record(z.unknown()) }),
   z.object({ id: z.string().uuid(), action: z.literal("flights-search"), query: flightQuerySchema }),
   z.object({ id: z.string().uuid(), action: z.literal("flights-return"), query: flightQuerySchema, token: z.string().min(10).max(4000) }),
+  z.object({
+    id: z.string().uuid(), action: z.literal("email-pdf"),
+    to: z.string().trim().email("Check the customer's email address."),
+    cc: z.array(z.string().trim().email("Check the CC email addresses.")).max(5, "Up to 5 CC addresses.").default([]),
+    note: z.string().trim().max(1000).default(""),
+    /** The itinerary PDF made in the browser, base64 (no "data:" prefix). */
+    pdf: z.string().min(100).max(PDF_MAX_BASE64, "The PDF is too large to email."),
+  }),
   z.object({ id: z.string().uuid(), action: z.literal("flights-save"), shortlist: z.array(z.record(z.unknown())).max(SHORTLIST_MAX, `Up to ${SHORTLIST_MAX} options per customer.`) }),
 ]);
 

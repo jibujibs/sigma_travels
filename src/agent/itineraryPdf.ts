@@ -33,8 +33,9 @@ const today = () => { const d = new Date(); return `${DOW[d.getDay()]} ${d.getDa
 
 export interface PdfCustomer { name: string; phone: string; email: string }
 
-export async function downloadItineraryPdf(customer: PdfCustomer, items: ShortlistItem[]): Promise<void> {
-  if (!items.length) return;
+/** Makes the PDF (no download): used by Download PDF and by Email PDF. */
+export async function buildItineraryPdf(customer: PdfCustomer, items: ShortlistItem[]): Promise<{ bytes: Uint8Array; filename: string }> {
+  if (!items.length) throw new Error("Add at least one flight first.");
   const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
   const doc = await PDFDocument.create();
   doc.setTitle(`Sigma Travels · Flight options for ${safe(customer.name)}`);
@@ -154,12 +155,25 @@ export async function downloadItineraryPdf(customer: PdfCustomer, items: Shortli
   });
 
   const bytes = await doc.save();
+  return { bytes, filename: `sigma-flight-options-${customer.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "customer"}-${q.depart}.pdf` };
+}
+
+export async function downloadItineraryPdf(customer: PdfCustomer, items: ShortlistItem[]): Promise<void> {
+  if (!items.length) return;
+  const { bytes, filename } = await buildItineraryPdf(customer, items);
   const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/pdf" }));
   const a = document.createElement("a");
   a.href = url;
-  a.download = `sigma-flight-options-${customer.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "customer"}-${q.depart}.pdf`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+/** PDF bytes → base64 for the email request. */
+export function toBase64(bytes: Uint8Array): string {
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
 }

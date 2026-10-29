@@ -81,6 +81,7 @@ export const api = {
     searchFlights: (id: string, query: FlightQuery) => request<{ request: VoiceRequest }>("PATCH", "/api/voice", { id, action: "flights-search", query }),
     returnFlights: (id: string, query: FlightQuery, token: string) => request<{ returns: FlightOption[] }>("PATCH", "/api/voice", { id, action: "flights-return", query, token }),
     saveShortlist: (id: string, shortlist: ShortlistItem[]) => request<{ request: VoiceRequest }>("PATCH", "/api/voice", { id, action: "flights-save", shortlist }),
+    emailPdf: (id: string, mail: { to: string; cc: string[]; note: string; pdf: string }) => request<{ request: VoiceRequest }>("PATCH", "/api/voice", { id, action: "email-pdf", ...mail }),
   },
   profile: {
     get: (guestId: string) => request<Profile>("GET", `/api/profile?${q({ guestId })}`),
