@@ -1,11 +1,12 @@
 /**
  * Emails: Gmail SMTP when GMAIL_USER + GMAIL_APP_PASSWORD are set (can send to anyone, with attachments),
  * otherwise Resend (RESEND_API_KEY; until a domain is verified it can only reach the Resend account's own address).
- * Sunny's notifications go to NOTIFY_EMAIL (To) and NOTIFY_CC (CC), both comma-separated.
+ * Sunny's notifications go to NOTIFY_EMAIL (To; default CONTACT_EMAIL) and NOTIFY_CC (CC; default the team list),
+ * both comma-separated; see shared/contact.ts.
  * All of these are server secrets: Vercel and .env.local only, never VITE_.
  */
 import nodemailer from "nodemailer";
-import { DEFAULT_CC } from "../shared/contact.js";
+import { CONTACT_EMAIL, DEFAULT_CC } from "../shared/contact.js";
 
 export interface Attachment { filename: string; content: Buffer; contentType: string }
 export interface Mail {
@@ -30,10 +31,13 @@ export const canEmailAnyone = (): boolean => Boolean(gmailUser() && gmailPass())
 
 /** Sends one email. Never throws: returns the reason instead, so a mail problem never loses a customer's message. */
 export async function sendEmail(mail: Mail): Promise<SendResult> {
-  const to = mail.to ?? list(process.env.NOTIFY_EMAIL);
+  const to = mail.to ?? (process.env.NOTIFY_EMAIL?.trim() ? list(process.env.NOTIFY_EMAIL) : [CONTACT_EMAIL]);
   // Sunny's notifications: NOTIFY_CC if set (empty = nobody), else the team list in shared/contact.ts.
-  const cc = mail.cc ?? (mail.to ? [] : process.env.NOTIFY_CC !== undefined ? list(process.env.NOTIFY_CC) : [...DEFAULT_CC]);
+  const ccWanted = mail.cc ?? (mail.to ? [] : process.env.NOTIFY_CC !== undefined ? list(process.env.NOTIFY_CC) : [...DEFAULT_CC]);
   if (!to.length) return { ok: false, reason: "No recipient (NOTIFY_EMAIL isn't set)." };
+  // Nobody gets the same email twice (e.g. Sunny in To and in the team CC list).
+  const seen = new Set(to.map((e) => e.toLowerCase()));
+  const cc = ccWanted.filter((e) => !seen.has(e.toLowerCase()) && Boolean(seen.add(e.toLowerCase())));
   return canEmailAnyone() ? viaGmail(mail, to, cc) : viaResend(mail, to, cc);
 }
 
