@@ -434,7 +434,7 @@ dl.fare .total dt{color:var(--ink)}
 @media (max-width:640px){.mb-form{grid-template-columns:1fr}.mb-form .btn{width:100%}}
 
 /* contact footer */
-.contact-foot{margin-top:16px;border-top:1px solid var(--line);padding-top:20px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;font-size:14px;color:var(--muted)}
+.contact-foot{margin-top:0;border-top:1px solid var(--line);padding-top:16px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;font-size:14px;color:var(--muted)}
 .cf-col{display:grid;gap:4px;align-content:start;min-width:0}
 .cf-name{color:var(--ink);font-size:15px}
 .contact-foot address{font-style:normal}
@@ -598,11 +598,11 @@ table.tickets td,table.tickets th{padding:6px}
 @media (max-width:640px){.ep-fields{grid-template-columns:1fr}}
 
 /* Customer tab: voice assistant (left) · find your booking + talk to Sunny (right) */
-.cust-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);grid-template-areas:"voice find" "voice talk" "card card";grid-template-rows:auto 1fr auto;gap:20px;align-items:start}
+.cust-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);grid-template-areas:"voice find" "voice talk";grid-template-rows:auto 1fr;gap:20px;align-items:start}
 .cust-grid .voice-card{grid-area:voice;padding:24px 26px;gap:18px}
 .cust-grid .mb-wrap{display:contents}
 .cust-grid .mb-hero{grid-area:find;padding:26px 28px}
-.cust-grid .mb-card{grid-area:card}
+.cust-grid .mb-card{grid-column:1 / -1}
 .cust-grid .talk-card{grid-area:talk;padding:26px 28px;gap:8px}
 .voice-card h2{font-size:clamp(28px,3.4vw,40px);letter-spacing:-.02em}
 .vm-how{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
@@ -621,7 +621,13 @@ table.tickets td,table.tickets th{padding:6px}
 .langs span{border:1px solid var(--line);border-radius:999px;padding:3px 12px;font-size:13px;color:var(--muted)}
 .vm-or{display:flex;align-items:center;gap:14px;margin:0 0 12px;font-size:13px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .vm-or::before,.vm-or::after{content:"";flex:1;border-top:1px solid var(--line)}
-.sample-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.sample-grid{display:grid;grid-auto-flow:column;grid-auto-columns:calc((100% - 10px) / 2);gap:10px;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:thin;padding-bottom:6px;overscroll-behavior-x:contain}
+.sample-grid .sample-card{scroll-snap-align:start}
+.vm-or-row{display:flex;align-items:center;gap:10px;margin:0 0 12px}
+.vm-or-row .vm-or{flex:1;margin:0}
+.sample-nav{display:flex;gap:6px}
+.sample-nav button{width:32px;height:32px;border-radius:50%;border:1px solid var(--line);background:var(--surface);color:var(--teal);font-size:20px;line-height:1;cursor:pointer;display:grid;place-items:center;padding-bottom:2px}
+.sample-nav button:hover{border-color:var(--teal)}
 .sample-card{display:flex;align-items:center;gap:14px;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:12px 16px;cursor:pointer;color:var(--ink);min-width:0}
 .sample-card:hover:not(:disabled){border-color:var(--teal)}
 .sample-card[aria-pressed="true"]{border-color:var(--teal);background:var(--teal-soft)}
@@ -647,8 +653,8 @@ table.tickets td,table.tickets th{padding:6px}
 .talk-card p{margin:0;font-size:15px}
 .talk-card a{color:var(--teal);text-decoration:none}
 .talk-card a:hover{text-decoration:underline}
-@media (max-width:980px){.cust-grid{grid-template-columns:minmax(0,1fr);grid-template-areas:"voice" "find" "talk" "card";grid-template-rows:none}}
-@media (max-width:640px){.cust-grid .voice-card,.cust-grid .mb-hero,.cust-grid .talk-card{padding:18px}.vm-how,.sample-grid{grid-template-columns:1fr}.voice-card .recorder{flex-direction:column;align-items:flex-start}.mic-round{width:76px;height:76px;font-size:32px}.vm-send .send-btn{width:100%}}
+@media (max-width:980px){.cust-grid{grid-template-columns:minmax(0,1fr);grid-template-areas:"voice" "find" "talk";grid-template-rows:none}}
+@media (max-width:640px){.cust-grid .voice-card,.cust-grid .mb-hero,.cust-grid .talk-card{padding:18px}.vm-how{grid-template-columns:1fr}.sample-grid{grid-auto-columns:86%}.voice-card .recorder{flex-direction:column;align-items:flex-start}.mic-round{width:76px;height:76px;font-size:32px}.vm-send .send-btn{width:100%}}
 
 /* Agent tab: Voice requests / Sabre payments sub-tabs, request list (left) + open request (right) */
 .agent-desk{display:grid;gap:16px;min-width:0}

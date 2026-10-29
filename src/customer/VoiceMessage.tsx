@@ -142,6 +142,9 @@ export function VoiceMessage() {
   }
 
   const busy = phase === "sending";
+  // Sample cards: two in view, the rest a sideways scroll (the arrows move one page).
+  const rowRef = useRef<HTMLDivElement>(null);
+  const slide = (dir: number) => { const r = rowRef.current; if (r) r.scrollBy({ left: dir * r.clientWidth, behavior: "smooth" }); };
   const picked = DEMO_SAMPLES.find((x) => x.id === sample);
   const ready = clip ? (picked ? `Sample “${picked.label}” ready` : `Your ${clock(clip.seconds)} message is ready`) : "";
   const contact = phone.trim() ? `Sunny will call ${phone.trim()}` : email.trim() ? `Sunny will email ${email.trim()}` : "";
@@ -192,8 +195,14 @@ export function VoiceMessage() {
 
         {DEMO_SAMPLES.length > 0 && phase !== "recording" && (
           <div className="demo-samples" role="group" aria-labelledby="vm-samples">
-            <p className="vm-or" id="vm-samples"><span>Or try a sample message</span></p>
-            <div className="sample-grid">
+            <div className="vm-or-row">
+              <p className="vm-or" id="vm-samples"><span>Or try a sample message</span></p>
+              {DEMO_SAMPLES.length > 2 && <span className="sample-nav">
+                <button type="button" aria-label="Previous samples" onClick={() => slide(-1)}>‹</button>
+                <button type="button" aria-label="More samples" onClick={() => slide(1)}>›</button>
+              </span>}
+            </div>
+            <div className="sample-grid" ref={rowRef}>
               {DEMO_SAMPLES.map((s) => (
                 <button key={s.id} type="button" className="sample-card" aria-pressed={sample === s.id} onClick={() => void loadSample(s)} disabled={busy}>
                   <span className="play" aria-hidden="true">▶</span>
