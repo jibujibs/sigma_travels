@@ -2,6 +2,7 @@ import type { PDFFont, PDFImage, PDFPage, RGB } from "pdf-lib";
 import { dayShift, hm, travellers, type FlightOption, type ShortlistItem } from "../../shared/flights";
 import { AIRPORTS } from "../lib/airports";
 import { safe } from "../lib/pdf";
+import { CONTACT_EMAIL } from "../../shared/contact";
 
 /**
  * A minimal one-page (or two) PDF of Sunny's options, to forward to the customer.
@@ -12,7 +13,7 @@ const CONTACT = {
   company: "Sigma Tours & Travels",
   address: "12959 Jupiter Rd, Ste 100, Dallas, TX 75238",
   phone: "214 221 3300",
-  email: "sunny@sigmatravelplan.com",
+  email: CONTACT_EMAIL,
   web: "sigmatravelplan.com",
 };
 

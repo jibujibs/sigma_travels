@@ -1,3 +1,4 @@
+import { CONTACT_EMAIL } from "../../shared/contact";
 /** Sigma Travel & Tours contact details, as on sigmatravelplan.com/content/3415/1/contact-details. */
 export function ContactFooter() {
   return (
@@ -10,7 +11,7 @@ export function ContactFooter() {
         <span>Phone <a href="tel:+12142213300">214 221 3300</a></span>
         <span>Cell <a href="tel:+12145521411">214 552 1411</a></span>
         <span>Fax 214 221 3301</span>
-        <span><a href="mailto:sunny@sigmatravelplan.com">sunny@sigmatravelplan.com</a></span>
+        <span><a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></span>
       </div>
       <div className="cf-col">
         <span>Mon–Fri 9:00 AM – 6:00 PM</span>

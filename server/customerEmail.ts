@@ -1,6 +1,7 @@
 import { dayShift, hm, rupees, travellers, type FlightOption, type ShortlistItem } from "../shared/flights.js";
 import { properName } from "../shared/voice.js";
 import { AIRPORTS } from "../shared/airports.js";
+import { CONTACT_EMAIL } from "../shared/contact.js";
 
 /**
  * The email Sunny sends the customer with the itinerary PDF attached: a short, friendly summary of
@@ -18,7 +19,7 @@ const day = (iso: string) => {
 const clock = (s: string) => (/\s(\d{1,2}:\d{2})/.exec(s)?.[1] ?? "").padStart(5, "0");
 
 export const SIGMA = {
-  company: "Sigma Tours & Travels", phone: "214 221 3300", email: "sunny@sigmatravelplan.com",
+  company: "Sigma Tours & Travels", phone: "214 221 3300", email: CONTACT_EMAIL,
   web: "sigmatravelplan.com", address: "12959 Jupiter Rd, Ste 100, Dallas, TX 75238",
 };
 
