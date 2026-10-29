@@ -90,10 +90,12 @@ export function VoiceTripBox({ v, onChange, onOpenPlanner }: Props) {
             <div><dt>Budget</dt><dd>{t.budget || "—"}</dd></div>
           </dl>
           {t.notes && <p className="vt-notes"><b>Notes:</b> {t.notes}</p>}
-          {t.missing.length > 0
-            ? <p className="vt-missing" role="note">⚠ Still to ask: {t.missing.join(", ")}</p>
-            : <p className="vt-complete">✓ Everything needed for a flight search</p>}
-          <div><button className="btn solid small-btn" onClick={() => onOpenPlanner(t)} disabled={!t.to}>✈ Open in AI Trip Planner</button></div>
+          <div className="vt-foot">
+            {t.missing.length > 0
+              ? <p className="vt-missing" role="note">⚠ Still to ask: {t.missing.join(", ")}</p>
+              : <p className="vt-complete">✓ Everything needed for a flight search</p>}
+            <button className="btn solid small-btn" onClick={() => onOpenPlanner(t)} disabled={!t.to}>✈ Open in AI Trip Planner</button>
+          </div>
         </>
       ) : (
         <p className="hint small">{v.english ? (hasResults ? "No trip details were found in this message. Change the search in Flights below." : "No trip details were found in this message. Press Edit to add them after talking to the customer.") : "Trip details appear once the message has text."}</p>
