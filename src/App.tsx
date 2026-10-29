@@ -248,7 +248,7 @@ export default function App({ user, onSaveHomeAirport, onSignOut, nav, brand }: 
   return (
     <div className="wrap">
       <div className="top">
-        {brand ?? <div className="brand"><span className="logo">Σ</span>Sigma Travels · Trip Planner</div>}
+        {brand ?? <div className="brand"><span className="logo" aria-hidden="true"><img src="/jibs-mark.png" alt="" width={32} height={32} /></span>Sigma Travels · Trip Planner</div>}
         {nav}
         <div className="top-actions">
           {tripsOn && <button className="btn" onClick={() => setShowTrips((v) => !v)} aria-expanded={showTrips}>My trips{trips.length ? ` (${trips.length})` : ""}</button>}
