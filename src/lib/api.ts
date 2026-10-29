@@ -97,6 +97,8 @@ export const api = {
     save: (guestId: string, s: PlanState, total: number) =>
       post<{ id: string; createdAt: string }>("/api/trips", { guestId, brief: s.brief, plan: s.plan, sel: s.sel, carOn: s.carOn, food: s.food, total }),
     remove: (guestId: string, id: string) => request<{ ok: true }>("DELETE", `/api/trips?${q({ guestId, id })}`),
+    email: (m: { subject: string; text: string; filename: string; pdf: string; extra: string[]; note: string }) =>
+      request<{ sentTo: string[]; at: string }>("PATCH", "/api/trips", { action: "email", ...m }),
   },
   chat: {
     history: (guestId: string, threadId: string) => request<{ messages: ChatMsg[]; saved: boolean }>("GET", `/api/chat?${q({ guestId, threadId })}`),

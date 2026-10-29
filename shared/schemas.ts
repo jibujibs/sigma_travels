@@ -81,3 +81,15 @@ export const chatRequestSchema = z.object({
   /** Recent turns kept by the browser, oldest first. */
   history: z.array(z.object({ role: z.enum(["user", "assistant"]), content: z.string().max(4000) })).max(12).default([]),
 });
+
+/** PATCH /api/trips: email the trip PDF to the team (NOTIFY_CC) and any extra addresses. */
+export const TRIP_PDF_MAX_BASE64 = 3_000_000;
+export const tripEmailSchema = z.object({
+  action: z.literal("email"),
+  subject: z.string().trim().min(3).max(200),
+  text: z.string().trim().min(3).max(8000),
+  filename: z.string().trim().regex(/^[\w.-]{1,120}\.pdf$/, "Bad file name"),
+  pdf: z.string().min(100).max(TRIP_PDF_MAX_BASE64, "The PDF is too large to email."),
+  extra: z.array(z.string().trim().email("Check the email address")).max(5, "Up to 5 extra addresses").default([]),
+  note: z.string().trim().max(1000).default(""),
+});

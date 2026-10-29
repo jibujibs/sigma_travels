@@ -5,7 +5,8 @@ import { buildDays, FOOD_LABEL, homeCode, needsList, picks, planNeeds, price, tr
 export { safe } from "../../shared/pdfText";
 import { safe } from "../../shared/pdfText";
 
-export async function downloadTripPdf(state: PlanState): Promise<void> {
+/** The trip PDF as bytes (Save as PDF downloads it; Email itinerary sends it). */
+export async function buildTripPdf(state: PlanState): Promise<{ bytes: Uint8Array; filename: string }> {
   const { PDFDocument, StandardFonts, rgb } = await import("pdf-lib");
   const { plan, brief } = state;
   const days = buildDays(state);
@@ -204,13 +205,19 @@ export async function downloadTripPdf(state: PlanState): Promise<void> {
   });
 
   const bytes = await doc.save();
+  return { bytes, filename: `sigma-${n.itinerary ? "trip" : "quote"}-${plan.destination.city.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${brief.start}.pdf` };
+}
+
+export async function downloadTripPdf(state: PlanState): Promise<void> {
+  const { bytes, filename } = await buildTripPdf(state);
   const blob = new Blob([bytes as BlobPart], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `sigma-${n.itinerary ? "trip" : "quote"}-${plan.destination.city.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${brief.start}.pdf`;
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
+
