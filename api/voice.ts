@@ -1,13 +1,15 @@
 import { waitUntil } from "@vercel/functions";
 import { requireUser } from "../server/auth.js";
-import { sendEmail } from "../server/email.js";
+import { canEmailAnyone, sendEmail, type Attachment } from "../server/email.js";
+import { buildItineraryPdf } from "../shared/itineraryPdf.js";
 import { voiceEmail } from "../server/voiceEmail.js";
+import { customerPdfEmail, SIGMA } from "../server/customerEmail.js";
 import { handle, HttpError, json, parseBody } from "../server/http.js";
 import { originOf } from "../server/payments.js";
 import { downloadAudio, insertVoice, isMissingColumn, listVoice, signedAudioUrl, updateVoice, uploadAudio, voiceById, type VoiceRow } from "../server/supabase.js";
 import { flightsConfigured, returnFlights, searchFlights } from "../server/flights.js";
 import { readTrip, transcribe } from "../server/voice.js";
-import { autoSearchBlockers, queryFromTrip, type FlightQuery, type ShortlistItem, type VoiceFlights } from "../shared/flights.js";
+import { autoSearchBlockers, queryFromTrip, topThree, type FlightQuery, type ShortlistItem, type VoiceFlights } from "../shared/flights.js";
 import { normalizeTrip, properName, withDateCheck, voicePatchSchema, voiceSubmitSchema, type VoiceRequest, type VoiceTrip } from "../shared/voice.js";
 
 /**
@@ -21,6 +23,7 @@ import { normalizeTrip, properName, withDateCheck, voicePatchSchema, voiceSubmit
  *   PATCH /api/voice  { id, action: "flights-search", query }       real flights (Google Flights via SerpApi)
  *   PATCH /api/voice  { id, action: "flights-return", query, token } return flights for one outbound flight
  *   PATCH /api/voice  { id, action: "flights-save", shortlist }      Sunny's chosen options
+ *   PATCH /api/voice  { id, action: "email-pdf", to, cc, note, pdf } email the itinerary PDF to the customer (Gmail)
  * The customer is told "sent" as soon as the recording is saved; voice → text → trip → email then runs
  * in the background (waitUntil), and the Agent tab shows "Turning the voice into text…" meanwhile.
  * Sign-in is required for now, like the rest of the site (demo); the Customer tab can be opened up later.
@@ -35,7 +38,10 @@ const today = () => new Date().toISOString().slice(0, 10);
 /** Stored flights, or null (rows from before phase C, or before the flights column exists). */
 const flightsOf = (r: VoiceRow): VoiceFlights | null => {
   const f = r.flights as VoiceFlights | null | undefined;
-  return f && typeof f === "object" ? { search: f.search ?? null, shortlist: Array.isArray(f.shortlist) ? f.shortlist : [], ...(f.note ? { note: f.note } : {}) } : null;
+  return f && typeof f === "object" ? {
+    search: f.search ?? null, shortlist: Array.isArray(f.shortlist) ? f.shortlist : [],
+    ...(f.note ? { note: f.note } : {}), ...(Array.isArray(f.emailed) ? { emailed: f.emailed } : {}),
+  } : null;
 };
 
 /** Saves the flights; null when the flights column hasn't been added yet. */
@@ -111,10 +117,41 @@ async function processVoice(row: VoiceRow, audio: string, mime: string, origin: 
   row = await autoFlights(row, trip);
   if (!notify) return row;
 
-  // Tell Sunny by email. Best effort: the message is already in Sunny's inbox.
-  const mail = await sendEmail(voiceEmail(row, trip, flightsOf(row), `${origin}/`, `${origin}/sigma-logo.png`));
+  // Tell Sunny (and the team on CC) by email, with the Top 3 itinerary PDF attached when flights were found.
+  // Best effort: the message is already in Sunny's inbox.
+  const pdf = await top3Pdf(row, trip, origin);
+  const mail = await sendEmail({
+    ...voiceEmail(row, trip, flightsOf(row), `${origin}/`, `${origin}/sigma-logo.png`, Boolean(pdf)),
+    ...(pdf ? { attachments: [pdf] } : {}),
+  });
   if (!mail.ok) console.warn(`[voice] email not sent: ${mail.reason}`);
   return row;
+}
+
+/**
+ * The same itinerary PDF Sunny can download, made on the server for the automatic Top 3 picks (one per airline).
+ * Never throws: without flights, or if anything fails, the email simply goes without it.
+ */
+async function top3Pdf(row: VoiceRow, trip: VoiceTrip | null, origin: string): Promise<Attachment | null> {
+  try {
+    const s = flightsOf(row)?.search;
+    if (!s?.options.length) return null;
+    const items: ShortlistItem[] = topThree(s.options, trip?.airline ?? "").map((t) => ({
+      id: `${t.option.id}|`, out: t.option, back: null, price: t.option.price, query: s.query, googleUrl: s.googleUrl, addedAt: s.at,
+    }));
+    const png = await fetch(`${origin}/sigma-logo.png`, { signal: AbortSignal.timeout(5_000) })
+      .then(async (r) => (r.ok && (r.headers.get("content-type") ?? "").includes("png") ? new Uint8Array(await r.arrayBuffer()) : null))
+      .catch(() => null);
+    const { bytes } = await buildItineraryPdf(
+      { name: properName(row.name), phone: row.phone ?? "", email: row.email ?? "" }, items,
+      { logo: png, note: s.query.return ? "Prices are for the whole round trip; the return flight is chosen when booking." : undefined },
+    );
+    const first = (properName(row.name).split(" ")[0] || "customer").replace(/[^A-Za-z0-9]+/g, "");
+    return { filename: `Sigma-Top3-${first}-${s.query.depart}.pdf`, content: Buffer.from(bytes), contentType: "application/pdf" };
+  } catch (e) {
+    console.warn(`[voice] Top 3 PDF not made for ${row.id}: ${e instanceof Error ? e.message : String(e)}`);
+    return null;
+  }
 }
 
 /**
@@ -132,11 +169,11 @@ async function autoFlights(row: VoiceRow, trip: VoiceTrip | null): Promise<Voice
   if (existing?.search && sameTrip(existing.search.query, query)) return row;
   let flights: VoiceFlights;
   try {
-    flights = { search: await searchFlights(query, true), shortlist: existing?.shortlist ?? [] };
+    flights = { search: await searchFlights(query, true), shortlist: existing?.shortlist ?? [], ...(existing?.emailed ? { emailed: existing.emailed } : {}) };
   } catch (e) {
     const reason = e instanceof Error ? e.message : String(e);
     console.warn(`[voice] automatic flight search failed for ${row.id}: ${reason}`);
-    flights = { search: null, shortlist: existing?.shortlist ?? [], note: `The automatic flight search didn't work: ${reason}` };
+    flights = { search: null, shortlist: existing?.shortlist ?? [], ...(existing?.emailed ? { emailed: existing.emailed } : {}), note: `The automatic flight search didn't work: ${reason}` };
   }
   return (await saveFlights(row.id, flights).catch(() => null)) ?? row;
 }
@@ -191,17 +228,39 @@ export const PATCH = handle(async (request) => {
     if (!current) throw new HttpError(404, "That voice message wasn't found.");
     if (body.query.depart < today()) throw new HttpError(400, "The departure date has passed. Choose a future date.");
     const search = await searchFlights(body.query);
-    const flights: VoiceFlights = { search, shortlist: flightsOf(current)?.shortlist ?? [] };
+    const prev = flightsOf(current);
+    const flights: VoiceFlights = { search, shortlist: prev?.shortlist ?? [], ...(prev?.emailed ? { emailed: prev.emailed } : {}) };
     row = await saveFlights(body.id, flights);
     // Column missing: still show the results, they just aren't kept.
     if (!row) return json({ request: { ...(await toView(current)), flights, flightsSaved: false } });
   } else if (body.action === "flights-return") {
     if (!(await voiceById(body.id))) throw new HttpError(404, "That voice message wasn't found.");
     return json({ returns: await returnFlights(body.query, body.token) });
+  } else if (body.action === "email-pdf") {
+    // Sunny emails the itinerary PDF (made in the browser) to the customer, through Gmail.
+    const current = await voiceById(body.id);
+    if (!current) throw new HttpError(404, "That voice message wasn't found.");
+    const prev = flightsOf(current);
+    if (!prev?.shortlist.length) throw new HttpError(400, "Add at least one flight to Sunny's options first.");
+    if (!canEmailAnyone()) throw new HttpError(503, "Emailing customers needs Gmail: add GMAIL_USER and GMAIL_APP_PASSWORD in Vercel (and .env.local), then redeploy.");
+    const pdf = Buffer.from(body.pdf, "base64");
+    if (pdf.subarray(0, 5).toString("latin1") !== "%PDF-") throw new HttpError(400, "That isn't a PDF.");
+    const origin = originOf(request);
+    const mail = customerPdfEmail(current.name, prev.shortlist, body.note, `${origin}/sigma-logo.png`);
+    const sent = await sendEmail({
+      subject: mail.subject, html: mail.html, text: mail.text,
+      to: [body.to], cc: body.cc,
+      replyTo: process.env.EMAIL_REPLY_TO?.trim() || SIGMA.email,
+      attachments: [{ filename: mail.filename, content: pdf, contentType: "application/pdf" }],
+    });
+    if (!sent.ok) throw new HttpError(502, sent.reason);
+    const emailed = [...(prev.emailed ?? []), { to: body.to, cc: body.cc, at: new Date().toISOString(), options: prev.shortlist.length }].slice(-20);
+    row = (await saveFlights(body.id, { ...prev, emailed })) ?? current;
   } else if (body.action === "flights-save") {
     const current = await voiceById(body.id);
     if (!current) throw new HttpError(404, "That voice message wasn't found.");
-    const flights: VoiceFlights = { search: flightsOf(current)?.search ?? null, shortlist: body.shortlist as unknown as ShortlistItem[] };
+    const prev = flightsOf(current);
+    const flights: VoiceFlights = { search: prev?.search ?? null, shortlist: body.shortlist as unknown as ShortlistItem[], ...(prev?.emailed ? { emailed: prev.emailed } : {}) };
     row = await saveFlights(body.id, flights);
     if (!row) throw new HttpError(503, `Sunny's options can't be saved yet. ${FLIGHTS_SQL}`);
   } else {
