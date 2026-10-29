@@ -142,36 +142,38 @@ export function VoiceMessage() {
   }
 
   const busy = phase === "sending";
+  const picked = DEMO_SAMPLES.find((x) => x.id === sample);
+  const ready = clip ? (picked ? `Sample “${picked.label}” ready` : `Your ${clock(clip.seconds)} message is ready`) : "";
+  const contact = phone.trim() ? `Sunny will call ${phone.trim()}` : email.trim() ? `Sunny will email ${email.trim()}` : "";
+  const status = phase === "recording" ? "Recording… press Stop when you're done"
+    : ready ? [ready, contact].filter(Boolean).join(" · ") : "Record a message or pick a sample first";
   return (
     <section className="desk-hero voice-card" aria-labelledby="vm-h">
       <div>
         <p className="eyebrow">New trip</p>
         <h2 id="vm-h">AI Voice Assistant: Speak to Book</h2>
-        <p className="hint">Record a message of up to 3 minutes: where you want to go, when, how many people and anything else. Sunny will call you back with flight options.</p>
+        <p className="hint">Say where you want to go, when and how many are travelling. Sunny gets real flight options and calls you back.</p>
       </div>
 
-      <form className="voice-form" onSubmit={send} noValidate>
-        {DEMO_CUSTOMERS.length > 0 && <div className="demo-people" role="group" aria-label="Demo customer">
-          <span className="lbl">Demo customer</span>
-          {DEMO_CUSTOMERS.map((d) => {
-            const on = d.name === name && d.phone === phone && d.email === email;
-            return <button key={d.name} type="button" className="chip" aria-pressed={on} onClick={() => fill(d)} disabled={busy}>{d.name}</button>;
-          })}
-        </div>}
-        <div className="voice-fields">
-          <div className="field"><label className="lbl" htmlFor="vm-name">Your name</label>
-            <input id="vm-name" autoComplete="name" value={name} maxLength={80} onChange={(e) => { setName(e.target.value); setError(undefined); }} disabled={busy} /></div>
-          <div className="field"><label className="lbl" htmlFor="vm-phone">Phone</label>
-            <input id="vm-phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="+1 214 555 0100" value={phone} maxLength={30} onChange={(e) => { setPhone(e.target.value); setError(undefined); }} disabled={busy} /></div>
-          <div className="field"><label className="lbl" htmlFor="vm-email">Email</label>
-            <input id="vm-email" type="email" inputMode="email" autoComplete="email" placeholder="you@example.com" value={email} maxLength={120} onChange={(e) => { setEmail(e.target.value); setError(undefined); }} disabled={busy} /></div>
-        </div>
+      <ol className="vm-how" aria-label="How it works">
+        <li><b><span aria-hidden="true">🎙</span> 1. Speak</b><span>up to 3 minutes, in your language</span></li>
+        <li><b><span aria-hidden="true">✈</span> 2. Sunny finds flights</b><span>real fares, top 3 airlines</span></li>
+        <li><b><span aria-hidden="true">📄</span> 3. Get your options</b><span>a call back with a PDF</span></li>
+      </ol>
 
+      <form className="voice-form" onSubmit={send} noValidate>
         <div className={`recorder ${phase}`}>
           {!supported ? (
             <p className="note">This browser can't record audio. Please use a recent Chrome, Edge, Firefox or Safari, or call the office.</p>
           ) : phase === "idle" ? (
-            <button type="button" className="btn solid big mic-btn" onClick={start}><span aria-hidden="true">🎤</span> Record message</button>
+            <>
+              <button type="button" className="mic-round" onClick={start} aria-label="Record message"><span aria-hidden="true">🎤</span></button>
+              <div className="rec-copy">
+                <button type="button" className="rec-title" onClick={start}>Tap to record your message</button>
+                <span className="hint">Up to 3:00 · you can listen before sending</span>
+                <span className="langs" aria-label="Languages">{["English", "Malayalam", "Hindi", "Tamil", "Arabic", "and more"].map((l) => <span key={l}>{l}</span>)}</span>
+              </div>
+            </>
           ) : phase === "recording" ? (
             <>
               <span className="rec-dot" aria-hidden="true" />
@@ -187,20 +189,46 @@ export function VoiceMessage() {
             </>
           )}
         </div>
-        {DEMO_SAMPLES.length > 0 && (phase === "idle" || phase === "recorded") && (
-          <div className="demo-people demo-samples" role="group" aria-label="Sample voice messages">
-            <span className="lbl">Sample voice messages</span>
-            {DEMO_SAMPLES.map((s) => (
-              <button key={s.id} type="button" className="chip" aria-pressed={sample === s.id} onClick={() => void loadSample(s)} disabled={busy}>▶ {s.label}</button>
-            ))}
+
+        {DEMO_SAMPLES.length > 0 && phase !== "recording" && (
+          <div className="demo-samples" role="group" aria-labelledby="vm-samples">
+            <p className="vm-or" id="vm-samples"><span>Or try a sample message</span></p>
+            <div className="sample-grid">
+              {DEMO_SAMPLES.map((s) => (
+                <button key={s.id} type="button" className="sample-card" aria-pressed={sample === s.id} onClick={() => void loadSample(s)} disabled={busy}>
+                  <span className="play" aria-hidden="true">▶</span>
+                  <span><b>{s.label}</b><small>{s.meta}</small></span>
+                </button>
+              ))}
+            </div>
           </div>
         )}
         <p className="sr-only" aria-live="polite">{phase === "recording" ? "Recording started" : phase === "recorded" ? "Recording stopped" : ""}</p>
 
+        <div className="vm-details">
+          {DEMO_CUSTOMERS.length > 0 && <div className="demo-people" role="group" aria-label="Demo customer">
+            <span className="lbl">Your details</span>
+            {DEMO_CUSTOMERS.map((d) => {
+              const on = d.name === name && d.phone === phone && d.email === email;
+              return <button key={d.name} type="button" className="chip" aria-pressed={on} onClick={() => fill(d)} disabled={busy}>{d.name}</button>;
+            })}
+            <span className="badge demo-badge">Demo</span>
+          </div>}
+          <div className="voice-fields">
+            <div className="field"><label className="lbl" htmlFor="vm-name">Name</label>
+              <input id="vm-name" autoComplete="name" value={name} maxLength={80} onChange={(e) => { setName(e.target.value); setError(undefined); }} disabled={busy} /></div>
+            <div className="field"><label className="lbl" htmlFor="vm-phone">Phone</label>
+              <input id="vm-phone" type="tel" inputMode="tel" autoComplete="tel" placeholder="+1 214 555 0100" value={phone} maxLength={30} onChange={(e) => { setPhone(e.target.value); setError(undefined); }} disabled={busy} /></div>
+            <div className="field"><label className="lbl" htmlFor="vm-email">Email</label>
+              <input id="vm-email" type="email" inputMode="email" autoComplete="email" placeholder="you@example.com" value={email} maxLength={120} onChange={(e) => { setEmail(e.target.value); setError(undefined); }} disabled={busy} /></div>
+          </div>
+        </div>
+
         {error && <p className="err-text" role="alert">{error}</p>}
-        {(phase === "recorded" || phase === "sending") && (
-          <button className="btn solid big send-btn" type="submit" disabled={busy}>{busy ? "Sending…" : "Request Tickets"}</button>
-        )}
+        <div className="vm-send">
+          <button className="btn solid big send-btn" type="submit" disabled={busy || !clip}>{busy ? "Sending…" : "Request Tickets"}</button>
+          <span className="hint" role="status">{status}</span>
+        </div>
       </form>
     </section>
   );

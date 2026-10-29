@@ -21,3 +21,16 @@ export function ContactFooter() {
     </footer>
   );
 }
+
+/** Customer tab: the "Talk to Sunny" card beside Find your booking. */
+export function TalkToSunny() {
+  return (
+    <section className="desk-hero talk-card" aria-labelledby="talk-h">
+      <h2 id="talk-h">Talk to Sunny</h2>
+      <p>Phone <a href="tel:+12142213300">214 221 3300</a> · Cell <a href="tel:+12145521411">214 552 1411</a></p>
+      <p><a href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</a></p>
+      <p className="muted">Mon–Fri 9:00 AM – 6:00 PM · Sat 9:00 AM – 1:00 PM</p>
+      <p className="muted">12959 Jupiter Road, Suite 100, Dallas, TX 75238</p>
+    </section>
+  );
+}

@@ -7,7 +7,7 @@ import { VoiceInbox } from "./agent/VoiceInbox";
 import { setPlannerPrefill } from "./lib/plannerPrefill";
 import { AccountMenu } from "./components/AccountMenu";
 import { Brand } from "./components/Brand";
-import { ContactFooter } from "./components/ContactFooter";
+import { ContactFooter, TalkToSunny } from "./components/ContactFooter";
 import { HomeAirport } from "./components/HomeAirport";
 import type { Profile } from "./lib/api";
 
@@ -86,7 +86,7 @@ export function Workspace({ user, onSaveHomeAirport, onSignOut }: Props) {
       )}
       {view === "agent"
         ? <><PnrDesk agentName={user.name} /><VoiceInbox onOpenPlanner={(trip, from) => { setPlannerPrefill({ trip, from }); go("planner"); }} /></>
-        : <><ManageBooking /><VoiceMessage /></>}
+        : <div className="cust-grid"><VoiceMessage /><ManageBooking /><TalkToSunny /></div>}
       <ContactFooter />
     </div>
   );

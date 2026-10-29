@@ -44,12 +44,12 @@ export function ManageBooking() {
   }
 
   return (
-    <div className="desk">
-      <section className="desk-hero" aria-labelledby="mb-h">
+    <div className="desk mb-wrap">
+      <section className="desk-hero mb-hero" aria-labelledby="mb-h">
         <div>
-          <p className="eyebrow">Customer · Manage my booking</p>
+          <p className="eyebrow">Already booked?</p>
           <h1 id="mb-h">Find your booking</h1>
-          <p className="hint">Enter your booking reference (PNR) and the email address you gave your travel agent. You'll see your flights and payment status, and can pay if payment is due.</p>
+          <p className="hint">See your flights and payment status, and pay if anything is due.</p>
         </div>
         <form className="mb-form" onSubmit={(e) => find(pnr, email, e)} noValidate>
           <div className="field">
@@ -62,11 +62,12 @@ export function ManageBooking() {
             <input id="mb-email" type="email" inputMode="email" autoComplete="email" value={email} placeholder="you@example.com"
               onChange={(e) => setEmail(e.target.value)} />
           </div>
-          <button className="btn solid big" type="submit" disabled={loading}>{loading ? "Finding…" : "Find my booking"}</button>
+          <button className="btn big mb-go" type="submit" disabled={loading}>{loading ? "Finding…" : "Find my booking"}</button>
           {error && <p className="err-text mb-full" role="alert">{error}</p>}
-          <p className="hint mb-full mb-demo">Sample bookings for the demo:{" "}
-            {DEMO.map((d) => <button key={d.pnr} type="button" className="chip mono" onClick={() => find(d.pnr, d.email)}>{d.pnr}</button>)}
-          </p>
+          <div className="mb-full mb-demo">
+            <span className="lbl">Sample bookings for the demo</span>
+            <div className="chips">{DEMO.map((d) => <button key={d.pnr} type="button" className="chip mono" onClick={() => find(d.pnr, d.email)}>{d.pnr}</button>)}</div>
+          </div>
         </form>
       </section>
 
