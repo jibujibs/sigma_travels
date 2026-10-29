@@ -2,6 +2,8 @@ import { useState } from "react";
 import type { Flight } from "../../shared/types";
 import { addDays, DOW, fmtDate, inr, iso, originCity, parseISO, todayUTC } from "../lib/format";
 import { buildDays, homeCode, needsList, picks, planNeeds, price, tripLength, type FoodStyle, type PlanState, type Selection } from "../lib/trip";
+import { buildTripPdf } from "../lib/pdf";
+import { api } from "../lib/api";
 
 interface Props {
   state: PlanState;
@@ -30,6 +32,38 @@ function FlightCard({ f }: { f: Flight }) {
 export function PlanView({ state, example, model, onChange, onPdf, onNewTrip, toast, onSave, saved }: Props) {
   const [day, setDay] = useState(0);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [mailOpen, setMailOpen] = useState(false);
+  const [mailExtra, setMailExtra] = useState("");
+  const [mailNote, setMailNote] = useState("");
+  const [mailBusy, setMailBusy] = useState(false);
+  const [mailError, setMailError] = useState<string>();
+  const [mailSent, setMailSent] = useState<{ to: string[]; at: string } | null>(null);
+  async function sendMail() {
+    const extra = mailExtra.split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean);
+    const bad = extra.find((x) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x));
+    if (bad) return setMailError(`Check the email address: ${bad}`);
+    if (extra.length > 5) return setMailError("Up to 5 extra addresses.");
+    setMailBusy(true);
+    setMailError(undefined);
+    try {
+      const { bytes, filename } = await buildTripPdf(state);
+      let bin = "";
+      for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      const dest = state.plan.destination.city;
+      const r = await api.trips.email({
+        subject: `Trip itinerary: ${originCity(state.brief.origin)} → ${dest} · ${fmtDate(start)} – ${fmtDate(end)} · Sigma Travels`,
+        text: tripText(), filename, pdf: btoa(bin), extra, note: mailNote.trim(),
+      });
+      setMailSent({ to: r.sentTo, at: r.at });
+      setMailOpen(false);
+      setMailNote("");
+      toast("Itinerary emailed");
+    } catch (e) {
+      setMailError((e as Error).message);
+    } finally {
+      setMailBusy(false);
+    }
+  }
   const [saving, setSaving] = useState(false);
   async function save() {
     if (!onSave) return;
@@ -59,7 +93,7 @@ export function PlanView({ state, example, model, onChange, onPdf, onNewTrip, to
     toast("No closure-free start date within two weeks");
   }
 
-  async function copyText() {
+  function tripText(): string {
     let s = `Sigma Travels · ${originCity(brief.origin)} → ${plan.destination.city}\n${fmtDate(start)} – ${fmtDate(end)} · ${brief.pax} adult(s)\n`;
     if (n.itinerary) {
       days.forEach((x, i) => { s += `\nDay ${i + 1} · ${fmtDate(x.date)} · ${x.title}\n`; x.stops.forEach((st) => { s += `  ${st.time}  ${st.name}${st.isClosed ? " (closed this day)" : ""}\n`; }); });
@@ -74,6 +108,10 @@ export function PlanView({ state, example, model, onChange, onPdf, onNewTrip, to
     }
     s += "\nEstimate\n"; q.lines.forEach((l) => { s += `  ${l.label}: ${inr(l.value)}\n`; });
     s += `  Total: ${inr(q.total)} (${inr(q.perPerson)} per person)\nEstimates only, subject to availability.`;
+    return s;
+  }
+  async function copyText() {
+    const s = tripText();
     try { await navigator.clipboard.writeText(s); toast("Copied. Paste it into WhatsApp or email"); }
     catch { toast("Copy was blocked by the browser"); }
   }
@@ -213,9 +251,25 @@ export function PlanView({ state, example, model, onChange, onPdf, onNewTrip, to
           <div className="actions">
             <button className="btn solid pdf" onClick={pdf} disabled={pdfBusy}>{pdfBusy ? "Creating PDF…" : "Save as PDF"}</button>
             {onSave && <button className="btn" onClick={save} disabled={saving || saved}>{saved ? "Saved ✓" : saving ? "Saving…" : "Save trip"}</button>}
+            {!example && <button className="btn" onClick={() => setMailOpen((x) => !x)} aria-expanded={mailOpen}>✉ Email itinerary</button>}
             <button className="btn" onClick={copyText}>Copy text</button>
             <button className="btn" onClick={onNewTrip}>Plan another trip</button>
           </div>
+          {mailOpen && (
+            <form className="trip-mail" onSubmit={(e) => { e.preventDefault(); void sendMail(); }} noValidate aria-label="Email the itinerary">
+              <p className="fine"><b>To:</b> the Sigma team group (NOTIFY_CC), with the itinerary PDF attached.</p>
+              <div className="field"><label className="lbl" htmlFor="tm-extra">Also send to (optional, comma separated)</label>
+                <input id="tm-extra" value={mailExtra} onChange={(e) => { setMailExtra(e.target.value); setMailError(undefined); }} placeholder="customer@example.com" disabled={mailBusy} /></div>
+              <div className="field"><label className="lbl" htmlFor="tm-note">Note (optional)</label>
+                <textarea id="tm-note" rows={2} maxLength={1000} value={mailNote} onChange={(e) => setMailNote(e.target.value)} disabled={mailBusy} /></div>
+              {mailError && <p className="err-text" role="alert">{mailError}</p>}
+              <div className="actions">
+                <button className="btn solid" type="submit" disabled={mailBusy}>{mailBusy ? "Sending…" : "Send email"}</button>
+                <button className="btn" type="button" onClick={() => setMailOpen(false)} disabled={mailBusy}>Cancel</button>
+              </div>
+            </form>
+          )}
+          {mailSent && !mailOpen && <p className="fine trip-mail-sent" role="status">✓ Emailed to {mailSent.to.join(", ")} · {new Date(mailSent.at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</p>}
           <p className="fine">{example ? "Example figures for a sample Kochi–Delhi trip." : "Prices are Gemini's estimates from general knowledge, not live fares. Check availability before booking."}</p>
         </aside>
       </div>
