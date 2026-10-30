@@ -130,6 +130,10 @@ export function VoiceMessage() {
     }
   }
 
+  // Hooks stay above the early return below (React needs the same hooks on every render).
+  // Sample cards: two in view, the rest a sideways scroll (the arrows move one page).
+  const rowRef = useRef<HTMLDivElement>(null);
+  const slide = (dir: number) => { const r = rowRef.current; if (r) r.scrollBy({ left: dir * r.clientWidth, behavior: "smooth" }); };
   if (phase === "sent") {
     return (
       <section className="desk-hero voice-card" aria-labelledby="vm-h">
@@ -142,9 +146,6 @@ export function VoiceMessage() {
   }
 
   const busy = phase === "sending";
-  // Sample cards: two in view, the rest a sideways scroll (the arrows move one page).
-  const rowRef = useRef<HTMLDivElement>(null);
-  const slide = (dir: number) => { const r = rowRef.current; if (r) r.scrollBy({ left: dir * r.clientWidth, behavior: "smooth" }); };
   const picked = DEMO_SAMPLES.find((x) => x.id === sample);
   const ready = clip ? (picked ? `Sample “${picked.label}” ready` : `Your ${clock(clip.seconds)} message is ready`) : "";
   const contact = phone.trim() ? `Sunny will call ${phone.trim()}` : email.trim() ? `Sunny will email ${email.trim()}` : "";
