@@ -6,7 +6,7 @@ import { voiceEmail } from "../server/voiceEmail.js";
 import { customerPdfEmail, SIGMA } from "../server/customerEmail.js";
 import { handle, HttpError, json, parseBody } from "../server/http.js";
 import { originOf } from "../server/payments.js";
-import { downloadAudio, insertVoice, isMissingColumn, listVoice, signedAudioUrl, updateVoice, uploadAudio, voiceById, type VoiceRow } from "../server/supabase.js";
+import { downloadAudio, insertVoice, isMissingColumn, listVoiceLight, signedAudioUrl, updateVoice, uploadAudio, voiceById, type VoiceListRow, type VoiceRow } from "../server/supabase.js";
 import { flightsConfigured, returnFlights, searchFlights } from "../server/flights.js";
 import { readTrip, transcribe } from "../server/voice.js";
 import { autoSearchBlockers, queryFromTrip, topThree, type FlightQuery, type ShortlistItem, type VoiceFlights } from "../shared/flights.js";
@@ -62,13 +62,32 @@ const tripOf = (r: VoiceRow): VoiceTrip | null => normalizeTrip(r.trip, Boolean(
 
 /** Background work gets this long before the inbox stops showing "processing" and offers Try again. */
 const PROCESSING_MS = 3 * 60_000;
-const isProcessing = (r: VoiceRow) => !r.transcript_en && !r.error && Date.now() - Date.parse(r.created_at) < PROCESSING_MS;
+const isProcessing = (r: Pick<VoiceRow, "transcript_en" | "error" | "created_at">) => !r.transcript_en && !r.error && Date.now() - Date.parse(r.created_at) < PROCESSING_MS;
 /** Text is ready and the automatic flight search is still running in the background (the inbox keeps checking). */
-function isSearching(r: VoiceRow): boolean {
-  if (!r.transcript_en || r.error || !flightsConfigured() || !("flights" in r)) return false;
-  const trip = tripOf(r), f = flightsOf(r);
-  if (!trip || autoSearchBlockers(trip, today()).length || f?.search || f?.note) return false;
+function isSearching(r: Pick<VoiceRow, "transcript_en" | "error" | "created_at" | "trip">, flightsColumn: boolean, searchedOrNoted: boolean): boolean {
+  if (!r.transcript_en || r.error || !flightsConfigured() || !flightsColumn) return false;
+  const trip = tripOf(r as VoiceRow);
+  if (!trip || autoSearchBlockers(trip, today()).length || searchedOrNoted) return false;
   return Date.now() - Date.parse(r.created_at) < PROCESSING_MS;
+}
+
+/** A light list entry: no flights and no recording link (both load when Sunny opens the request: GET ?id=). */
+function toListView(r: VoiceListRow): VoiceRequest {
+  const flightsColumn = "flights_at" in r;
+  return {
+    id: r.id, createdAt: r.created_at, name: properName(r.name), phone: r.phone ?? "", email: r.email ?? "",
+    seconds: r.seconds, audioUrl: null, language: r.language ?? "", transcript: r.transcript ?? "", english: r.transcript_en ?? "",
+    status: r.status,
+    ...(r.error ? { error: r.error } : !r.transcript_en && !isProcessing(r) ? { error: "The voice wasn't turned into text. Press Try again." } : {}),
+    processing: isProcessing(r),
+    searching: isSearching(r, flightsColumn, Boolean(r.flights_at || r.flights_note)),
+    trip: withDateCheck(tripOf(r as VoiceRow), r.created_at),
+    tripSaved: "trip" in r,
+    flights: null,
+    flightsSaved: flightsColumn,
+    light: true,
+    flightsAt: r.flights_at ?? r.flights_note ?? "",
+  };
 }
 
 async function toView(r: VoiceRow): Promise<VoiceRequest> {
@@ -86,7 +105,7 @@ async function toView(r: VoiceRow): Promise<VoiceRequest> {
     status: r.status,
     ...(r.error ? { error: r.error } : !r.transcript_en && !isProcessing(r) ? { error: "The voice wasn't turned into text. Press Try again." } : {}),
     processing: isProcessing(r),
-    searching: isSearching(r),
+    searching: isSearching(r, "flights" in r, Boolean(flightsOf(r)?.search || flightsOf(r)?.note)),
     trip: withDateCheck(tripOf(r), r.created_at),
     tripSaved: "trip" in r,
     flights: flightsOf(r),
@@ -207,8 +226,17 @@ export const POST = handle(async (request) => {
 
 export const GET = handle(async (request) => {
   await requireUser(request);
-  const rows = await listVoice();
-  return json({ requests: await Promise.all(rows.map(toView)) });
+  // GET ?id=…: one request in full (flights + a fresh recording link), for the request Sunny opens.
+  const id = new URL(request.url).searchParams.get("id");
+  if (id) {
+    if (!/^[0-9a-f-]{36}$/i.test(id)) throw new HttpError(400, "Bad request id.");
+    const row = await voiceById(id);
+    if (!row) throw new HttpError(404, "That voice request wasn't found.");
+    return json({ request: await toView(row) });
+  }
+  // The list: light rows, no flights and no recording links (one database call, a few KB).
+  const rows = await listVoiceLight();
+  return json({ requests: rows.map(toListView) });
 });
 
 export const PATCH = handle(async (request) => {

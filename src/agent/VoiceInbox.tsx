@@ -13,8 +13,28 @@ const tel = (p: string) => `tel:${p.replace(/[^\d+]/g, "")}`;
  * Agent tab: voice messages customers left for Sunny, newest first.
  * Listen, read what they said (with an English version), call or email them back, and track the status.
  */
+/** Kept between visits to the Agent tab (and in sessionStorage across reloads), so the list shows at once
+ * while fresh data loads in the background. Details (flights, recording link) are kept per request in memory. */
+const LIST_KEY = "sigma-voice-list";
+let listCache: VoiceRequest[] | null = (() => {
+  try { const t = sessionStorage.getItem(LIST_KEY); return t ? (JSON.parse(t) as VoiceRequest[]) : null; } catch { return null; }
+})();
+const detailCache = new Map<string, { v: VoiceRequest; key: string }>();
+/** Changes whenever the request needs reloading in full: text read, trip changed, a search saved, status… */
+const keyOf = (v: VoiceRequest) => [v.processing, v.searching, v.english, v.status, v.error ?? "", JSON.stringify(v.trip),
+  v.flightsAt ?? v.flights?.search?.at ?? v.flights?.note ?? ""].join("|");
+
 export function VoiceInbox({ onOpenPlanner, onNewCount }: { onOpenPlanner: (trip: VoiceTrip, from: string) => void; onNewCount?: (n: number) => void }) {
-  const [items, setItems] = useState<VoiceRequest[] | null>(null);
+  const [items, setItemsRaw] = useState<VoiceRequest[] | null>(listCache);
+  const setItems = useCallback((next: VoiceRequest[] | null | ((xs: VoiceRequest[] | null) => VoiceRequest[] | null)) => {
+    setItemsRaw((xs) => {
+      const v = typeof next === "function" ? next(xs) : next;
+      listCache = v;
+      try { if (v) sessionStorage.setItem(LIST_KEY, JSON.stringify(v.map((x) => (x.light ? x : { ...x, flights: null, audioUrl: null, light: true })))); } catch { /* full or blocked: memory only */ }
+      return v;
+    });
+  }, []);
+  const [, bump] = useState(0);
   const [error, setError] = useState<string>();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState<string>();
@@ -30,7 +50,7 @@ export function VoiceInbox({ onOpenPlanner, onNewCount }: { onOpenPlanner: (trip
     } finally {
       if (!quiet) setLoading(false);
     }
-  }, []);
+  }, [setItems]);
 
   // Load now, then look for new messages every 30 seconds, or every 4 seconds while a voice is being turned into text
   // or its flights are being searched, so the Top 3 appears by itself.
@@ -46,7 +66,7 @@ export function VoiceInbox({ onOpenPlanner, onNewCount }: { onOpenPlanner: (trip
     setItems((xs) => xs?.map((x) => (x.id === id ? { ...x, processing: true, error: undefined } : x)) ?? null);
     try {
       const { request } = await api.voice.retry(id);
-      setItems((xs) => xs?.map((x) => (x.id === id ? request : x)) ?? null);
+      update(request);
     } catch (e) {
       setError((e as Error).message);
       void load(true);
@@ -59,7 +79,7 @@ export function VoiceInbox({ onOpenPlanner, onNewCount }: { onOpenPlanner: (trip
     setSaving(id);
     try {
       const { request } = await api.voice.setStatus(id, status);
-      setItems((xs) => xs?.map((x) => (x.id === id ? request : x)) ?? null);
+      update(request);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -77,7 +97,31 @@ export function VoiceInbox({ onOpenPlanner, onNewCount }: { onOpenPlanner: (trip
   const earlier = items?.slice(1) ?? [];
   const fresh = items?.filter((x) => x.status === "new").length ?? 0;
   useEffect(() => { onNewCount?.(fresh); }, [fresh, onNewCount]);
-  const update = (r: VoiceRequest) => setItems((xs) => xs?.map((x) => (x.id === r.id ? r : x)) ?? null);
+  const update = (r: VoiceRequest) => {
+    detailCache.set(r.id, { v: r, key: keyOf(r) });
+    setItems((xs) => xs?.map((x) => (x.id === r.id ? r : x)) ?? null);
+  };
+
+  // The open request in full (flights + recording link): loaded when it opens, and again only when it changes.
+  const openKey = open ? keyOf(open) : "";
+  useEffect(() => {
+    if (!open || open.processing || !open.light) return; // a full entry (after Sunny's own change) needs no reload
+    const have = detailCache.get(open.id);
+    if (have && have.key === openKey) return;
+    let gone = false;
+    api.voice.get(open.id).then(({ request }) => {
+      if (gone) return;
+      detailCache.set(request.id, { v: request, key: openKey });
+      bump((n) => n + 1);
+    }).catch((e) => { if (!gone) setError((e as Error).message); });
+    return () => { gone = true; };
+  }, [open?.id, openKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  // While a newer version loads, keep showing the flights already loaded, with the list's latest text, trip and status.
+  const cachedOpen = open ? detailCache.get(open.id) : undefined;
+  const shownOpen = !open ? undefined : open.processing || !cachedOpen ? open
+    : cachedOpen.key === openKey || !open.light ? (open.light ? cachedOpen.v : open)
+    : { ...cachedOpen.v, status: open.status, processing: open.processing, searching: open.searching, english: open.english,
+      transcript: open.transcript, language: open.language, error: open.error, trip: open.trip };
 
   const row = (v: VoiceRequest) => (
     <li key={v.id}>
@@ -98,7 +142,7 @@ export function VoiceInbox({ onOpenPlanner, onNewCount }: { onOpenPlanner: (trip
       {items && items.length === 0 && <p className="note">No voice messages yet. They'll appear here as soon as a customer sends one.</p>}
       {!items && !error && <p className="hint"><span className="spin" aria-hidden="true" /> Loading voice requests…</p>}
 
-      {items && items.length > 0 && open && (
+      {items && items.length > 0 && open && shownOpen && (
         <div className="vi-layout">
           <aside className="vi-side" aria-label="Requests">
             <div className="vi-side-head">
@@ -116,7 +160,7 @@ export function VoiceInbox({ onOpenPlanner, onNewCount }: { onOpenPlanner: (trip
             )}
           </aside>
 
-          <Detail key={open.id} v={open} saving={saving === open.id} onStatus={(s) => void setStatus(open.id, s)} onRetry={() => void retry(open.id)}
+          <Detail key={open.id} v={shownOpen} saving={saving === open.id} onStatus={(s) => void setStatus(open.id, s)} onRetry={() => void retry(open.id)}
             onOpenPlanner={onOpenPlanner} onChange={update} />
         </div>
       )}
@@ -192,10 +236,11 @@ function Detail({ v, saving, onStatus, onRetry, onOpenPlanner, onChange }: {
           <button className="btn small-btn" onClick={onRetry} disabled={saving}>{saving ? "Trying again…" : "Try again"}</button>
         </div>
       )}
-      {!v.audioUrl && <p className="hint small">The recording can't be played right now.</p>}
+      {!v.audioUrl && !v.light && <p className="hint small">The recording can't be played right now.</p>}
 
-      {!v.processing && <VoiceTripBox v={v} onOpenPlanner={(trip) => onOpenPlanner(trip, v.name)} onChange={onChange} />}
-      {!v.processing && v.english && <VoiceFlights key={`${v.id}:${JSON.stringify(v.trip)}`} v={v} onChange={onChange} />}
+      {v.light && !v.processing && <p className="vf-finding" role="status"><span className="spin" aria-hidden="true" /> Loading flights and the recording…</p>}
+      {!v.processing && !v.light && <VoiceTripBox v={v} onOpenPlanner={(trip) => onOpenPlanner(trip, v.name)} onChange={onChange} />}
+      {!v.processing && !v.light && v.english && <VoiceFlights key={`${v.id}:${JSON.stringify(v.trip)}`} v={v} onChange={onChange} />}
     </article>
   );
 }

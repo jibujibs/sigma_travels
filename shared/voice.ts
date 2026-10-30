@@ -55,6 +55,10 @@ export interface VoiceRequest {
   processing: boolean;
   /** True while the automatic Google Flights search for this message is still running. */
   searching?: boolean;
+  /** True on list entries: flights and the recording link aren't included (open the request to load them). */
+  light?: boolean;
+  /** List entries: when the saved flight search ran (or its note), so the inbox knows when to reload the open request. */
+  flightsAt?: string;
   /** Trip details read from the message (null: none described, or not read yet). */
   trip: VoiceTrip | null;
   /** False when the trip column hasn't been added in Supabase yet (run supabase/voice_requests.sql). */
