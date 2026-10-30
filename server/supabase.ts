@@ -276,6 +276,27 @@ export async function voiceById(id: string): Promise<VoiceRow | null> {
   return rows[0] ?? null;
 }
 
+/** A list row: everything except the heavy flights (only when and whether a search was saved) and the audio path. */
+export type VoiceListRow = Omit<VoiceRow, "flights" | "audio_path" | "audio_mime"> & { flights_at?: string | null; flights_note?: string | null };
+
+/**
+ * The inbox list, light: the saved Google Flights results (up to 60 per request) stay in the database
+ * and are loaded only for the request Sunny opens (voiceById). Falls back to the full rows when the
+ * trip or flights column hasn't been added yet.
+ */
+export async function listVoiceLight(limit = 50): Promise<VoiceListRow[]> {
+  const cols = "id,created_at,name,phone,email,seconds,language,transcript,transcript_en,status,error,submitted_by,trip,flights_at:flights->search->>at,flights_note:flights->>note";
+  try {
+    return await rest<VoiceListRow[]>("loading voice messages", `voice_requests?select=${cols}&order=created_at.desc&limit=${limit}`);
+  } catch (e) {
+    if (!isMissingColumn(e, "trip") && !isMissingColumn(e, "flights")) throw e;
+    return (await listVoice(limit)).map(({ flights, audio_path: _p, audio_mime: _m, ...r }) => {
+      const f = flights as { search?: { at?: string } | null; note?: string } | null | undefined;
+      return { ...r, ...(flights !== undefined ? { flights_at: f?.search?.at ?? null, flights_note: f?.note ?? null } : {}) };
+    });
+  }
+}
+
 export function listVoice(limit = 50): Promise<VoiceRow[]> {
   return rest<VoiceRow[]>("loading voice messages", `voice_requests?select=*&order=created_at.desc&limit=${limit}`);
 }

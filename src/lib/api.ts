@@ -74,6 +74,7 @@ export const api = {
     send: (m: { name: string; phone: string; email: string; audio: string; mime: string; seconds: number }) =>
       post<{ id: string }>("/api/voice", m),
     list: () => request<{ requests: VoiceRequest[] }>("GET", "/api/voice"),
+    get: (id: string) => request<{ request: VoiceRequest }>("GET", `/api/voice?id=${encodeURIComponent(id)}`),
     setStatus: (id: string, status: VoiceStatus) => request<{ request: VoiceRequest }>("PATCH", "/api/voice", { id, status }),
     saveTrip: (id: string, trip: VoiceTrip) => request<{ request: VoiceRequest }>("PATCH", "/api/voice", { id, action: "save-trip", trip }),
     readTrip: (id: string) => request<{ request: VoiceRequest }>("PATCH", "/api/voice", { id, action: "read-trip" }),
