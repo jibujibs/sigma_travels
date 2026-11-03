@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { needsOf, type Budget, type Needs, type TripBrief } from "../../shared/types";
 import { addDays, fmtDate, iso, parseISO, todayUTC } from "../lib/format";
 import { AIRPORTS } from "../lib/airports";
@@ -6,6 +7,33 @@ import { NEED_LABEL } from "../lib/trip";
 const SPOTS = ["Eiffel Tower, Paris", "Taj Mahal, Agra", "Machu Picchu, Peru", "Santorini, Greece", "Kyoto temples", "Bali beaches", "Swiss Alps", "Dubai", "Maldives", "New York City", "Petra, Jordan", "Northern Lights, Norway"];
 const INTERESTS = ["Beaches", "History", "Food", "Nature", "Mountains", "Nightlife", "Shopping", "Adventure", "Family", "Romance", "Culture"];
 const BUDGETS: Budget[] = ["Budget", "Mid-range", "Luxury"];
+/** Example requests typed out in the empty "Where to" box (a typewriter hint, like yatra.com's AI box). */
+const EXAMPLES = ["5 days in Dubai with my family", "Flights from Kochi to Doha in December", "Quiet beach holiday with good food",
+  "Hotel near Burj Khalifa for 3 nights", "Weekend in Munnar for 2 adults"];
+
+/** Types each example letter by letter, pauses, deletes it and moves to the next. Stops while the box has focus or text,
+ * and shows the first example still for people who asked their device to reduce motion. */
+function useTypewriter(active: boolean): string {
+  const [text, setText] = useState("");
+  useEffect(() => {
+    if (!active) return;
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) { setText(EXAMPLES[0]); return; }
+    let i = 0, n = 0, del = false, t = 0;
+    const step = () => {
+      const full = EXAMPLES[i];
+      n += del ? -1 : 1;
+      setText(full.slice(0, n));
+      let wait = del ? 28 : 55;
+      if (!del && n === full.length) { del = true; wait = 1600; }
+      else if (del && n === 0) { del = false; i = (i + 1) % EXAMPLES.length; wait = 350; }
+      t = window.setTimeout(step, wait);
+    };
+    t = window.setTimeout(step, 400);
+    return () => window.clearTimeout(t);
+  }, [active]);
+  return text;
+}
+
 const NEEDS = Object.keys(NEED_LABEL) as (keyof Needs)[];
 const NEED_ICON: Record<keyof Needs, string> = { flights: "✈", hotel: "🏨", car: "🚗", itinerary: "🗓" };
 const NEED_HINT: Record<keyof Needs, string> = { flights: "from your city", hotel: "for every night", car: "pick-up at airport", itinerary: "what to see each day" };
@@ -25,6 +53,8 @@ interface Props {
 }
 
 export function IdeaForm({ brief, onChange, onSubmit, busy, error, originError, onApplyNeeds, understood }: Props) {
+  const [focused, setFocused] = useState(false);
+  const typed = useTypewriter(!focused && !brief.idea);
   const set = <K extends keyof TripBrief>(k: K, v: TripBrief[K]) => onChange({ ...brief, [k]: v });
   const toggle = (i: string) => set("interests", brief.interests.includes(i) ? brief.interests.filter((x) => x !== i) : [...brief.interests, i]);
   const needs = needsOf(brief);
@@ -64,7 +94,8 @@ export function IdeaForm({ brief, onChange, onSubmit, busy, error, originError, 
           <div className={`where${error ? " invalid" : ""}`}>
             <span aria-hidden="true">📍</span>
             <textarea id="idea" rows={1} value={brief.idea} maxLength={500}
-              placeholder="e.g. Flights to Dubai · Hotels in London · 5 days in Paris"
+              placeholder={focused ? "e.g. Flights to Dubai · Hotels in London · 5 days in Paris" : typed ? `${typed}|` : " "}
+              onFocus={() => setFocused(true)} onBlur={() => setFocused(false)}
               onChange={(e) => set("idea", e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSubmit(); } }} />
             {brief.idea && <button type="button" className="clear" onClick={() => set("idea", "")}>✕ Clear</button>}
