@@ -4,12 +4,8 @@
   --bg:#faf5ef; --surface:#ffffff; --sunk:#f4ebe1; --ink:#2b1a14; --muted:#7a6359; --line:#ecdcd0;
   --teal:#c8472b; --teal-ink:#ffffff; --teal-soft:#fde6dd;
   --sand:#a3261b; --sand-soft:#fbe4e1; --gold:#a8730c; --gold-soft:#fbf0d6; --ok:#1f7a3f; --ok-soft:#e1f3e6;
-  --display:"Bricolage Grotesque",Georgia,serif; --body:"Instrument Sans","Segoe UI",Arial,sans-serif; --mono:"JetBrains Mono",ui-monospace,Consolas,monospace;
+  --display:"Bricolage Grotesque",Georgia,serif; --body:"Instrument Sans","Segoe UI",Arial,sans-serif; --mono:"JetBrains Mono",ui-monospace,Consolas,monospace; color-scheme:light;
 }
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
-  --bg:#1a1210; --surface:#241915; --sunk:#1f1512; --ink:#f6ebe4; --muted:#bfa69a; --line:#3d2a23;
-  --teal:#f2785a; --teal-ink:#2a0f07; --teal-soft:#4a2318; --sand:#ff9b9b; --sand-soft:#3d1a1a;
-  --gold:#e3b34e; --gold-soft:#33280f; --ok:#5fcf86; --ok-soft:#143021; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#1a1210; --surface:#241915; --sunk:#1f1512; --ink:#f6ebe4; --muted:#bfa69a; --line:#3d2a23;
   --teal:#f2785a; --teal-ink:#2a0f07; --teal-soft:#4a2318; --sand:#ff9b9b; --sand-soft:#3d1a1a;
@@ -493,7 +489,6 @@ table.tickets td,table.tickets th{padding:6px}
 /* Original words: blue label and a blue rule beside them */
 .vi-orig{border-left:3px solid #2f7fd8;padding:2px 0 2px 14px}
 .vi-label.orig{color:#2f7fd8}
-@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .vi-orig{border-left-color:#5aa7ff}:root:not([data-theme="light"]) .vi-label.orig{color:#5aa7ff}}
 :root[data-theme="dark"] .vi-orig{border-left-color:#5aa7ff}:root[data-theme="dark"] .vi-label.orig{color:#5aa7ff}
 /* English translation: yellow highlight, dark text so it reads in light and dark mode */
 .vi-trans{background:#fff3b8;border:1px solid #f0cf4a;border-radius:10px;padding:10px 14px}
