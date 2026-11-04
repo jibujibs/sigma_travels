@@ -28,6 +28,23 @@ export function originFromText(text: string): { city: string; airport: string } 
   return null;
 }
 
+/**
+ * The city a request says it flies TO ("from Dubai to Kochi", "flights to Dubai"), from the words alone and
+ * only when it is a city in our airport list. Used when Gemini can't read the request.
+ */
+export function destinationFromText(text: string): { city: string; country: string; airport: string } | null {
+  const t = ` ${text.toLowerCase().replace(/[^a-z\s'-]/g, " ").replace(/\s+/g, " ")} `;
+  const m = / to ((?:[a-z'-]+ ){1,3})/.exec(t);
+  if (!m) return null;
+  const w = m[1].trim().split(" ");
+  for (let n = w.length; n >= 1; n--) {
+    const city = w.slice(0, n).join(" ");
+    const airport = airportFor(city);
+    if (airport) return { city: city.replace(/\b\w/g, (c) => c.toUpperCase()), country: "", airport };
+  }
+  return null;
+}
+
 /** An amount under its neutral name ("fare"), or the older "_inr" name used by saved trips. */
 const amount = (o: Record<string, unknown>, key: string, fallback = 0) => num(o[key] ?? o[`${key}_inr`], fallback);
 

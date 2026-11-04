@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { AIRPORTS } from "../shared/airports";
 import { currencyForPlace } from "../shared/currency";
+import { destinationFromText, originFromText } from "../shared/normalize";
 import { ALL_NEEDS, isFullTrip, needsOf, type Intent, type Needs, type Recommendation, type TripBrief } from "../shared/types";
 import { AccountMenu } from "./components/AccountMenu";
 import { CopilotDrawer } from "./components/CopilotDrawer";
@@ -146,7 +147,8 @@ export default function App({ user, onSaveHomeAirport, onSignOut, nav, brand }: 
     let place: Place | null = null;
     if (brief.idea.trim()) {
       // If reading the request fails, carry on as a normal search instead of showing an error.
-      const failed: Intent = { destination: null, needs: null };
+      // Even then, From and To are read from the typed words ("from Dubai to Kochi").
+      const failed: Intent = { destination: destinationFromText(brief.idea), origin: originFromText(brief.idea), needs: null };
       const intent = await run("Reading your request", async (sig) => {
         try { return await api.intent(brief.idea, brief.origin, sig); }
         catch (e) { if ((e as Error).name === "AbortError") throw e; console.warn("Couldn't read the request:", (e as Error).message); return failed; }
