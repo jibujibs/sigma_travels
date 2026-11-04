@@ -45,7 +45,7 @@ export function customerPdfEmail(customerName: string, items: ShortlistItem[], n
   const subject = `Your flight options: ${from} → ${to} · ${day(q.depart)} · Sigma Travels`;
   const filename = `Sigma-flight-options-${first.replace(/[^A-Za-z0-9]+/g, "")}-${q.depart}.pdf`;
 
-  const C = { ink: "#1d2329", muted: "#6b7480", line: "#e3e6ea", soft: "#f6f7f9", orange: "#f36523", teal: "#0f766e" };
+  const C = { ink: "#1d2329", muted: "#6b7480", line: "#e3e6ea", soft: "#f6f7f9", orange: "#f36523", teal: "#c8472b" };
   const font = "font-family:Arial,Helvetica,sans-serif;";
   const rows = items.map((it, i) => {
     const people = it.query.adults + it.query.children + it.query.infants;
