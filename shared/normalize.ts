@@ -1,6 +1,33 @@
 import { airportFor } from "./airports.js";
 import { needsOf, type Car, type Flight, type Hotel, type Intent, type Needs, type PlanDay, type Recommendation, type Stop, type TripPlan } from "./types.js";
 
+/**
+ * The city a request says it flies from, read straight from the words ("from Trivandrum to Dubai",
+ * "flight details from trivandrum", "Trivandrum to Dubai"), only when it is a city in our airport list.
+ * Doesn't depend on Gemini, so the home airport can't win over what the traveller typed.
+ */
+export function originFromText(text: string): { city: string; airport: string } | null {
+  const t = ` ${text.toLowerCase().replace(/[^a-z\s'-]/g, " ").replace(/\s+/g, " ")} `;
+  const tryWords = (words: string[]) => {
+    for (let n = Math.min(3, words.length); n >= 1; n--) {
+      const city = words.slice(-n).join(" ");
+      const code = airportFor(city);
+      if (code) return { city: city.replace(/\b\w/g, (c) => c.toUpperCase()), airport: code };
+    }
+    return null;
+  };
+  // "from X …": the words right after "from" (1-3 words, longest known city first).
+  const from = / from ((?:[a-z'-]+ ){1,3})/.exec(t);
+  if (from) {
+    const w = from[1].trim().split(" ");
+    for (let n = w.length; n >= 1; n--) { const hit = tryWords(w.slice(0, n)); if (hit && hit.city.split(" ").length === n) return hit; }
+  }
+  // "X to Y": the 1-3 words before the first " to ".
+  const to = t.indexOf(" to ");
+  if (to > 0) return tryWords(t.slice(0, to).trim().split(" "));
+  return null;
+}
+
 /* The model's JSON is untrusted: coerce every field into the shape the UI expects. */
 
 const str = (v: unknown, d = ""): string => (typeof v === "string" ? v.trim() : v == null ? d : String(v));
