@@ -42,9 +42,10 @@ Traveller flies from: ${origin || "unknown"}
    - itinerary: a day-by-day plan, sightseeing, things to do, places to visit, food and activities.
    specific = true only when the request asks for some of these parts and not a whole trip ("flights to Dubai", "hotels in Dubai", "Dubai flight and hotel"). Then set only the asked parts to true.
    specific = false when it asks for a vacation, holiday, trip, tour, visit, "N days in" a place, a full plan, or names only a place or an idea. Then set all four to true.
+3. origin: only if the request itself says where the traveller flies FROM ("from Trivandrum", "Trivandrum to Dubai", "flying out of London"), give that city and its main airport IATA code. Use null if the request doesn't say; never copy the "Traveller flies from" line above into origin.
 
 Reply with only JSON:
-{"destination":{"city":"","country":"","airport":"IATA"} or null,"specific":false,"needs":{"flights":true,"hotel":true,"car":true,"itinerary":true}}`;
+{"destination":{"city":"","country":"","airport":"IATA"} or null,"origin":{"city":"","airport":"IATA"} or null,"specific":false,"needs":{"flights":true,"hotel":true,"car":true,"itinerary":true}}`;
 }
 
 export function planPrompt(b: TripBrief, d: { city: string; country: string; airport: string }, needs: Needs = ALL_NEEDS): string {
