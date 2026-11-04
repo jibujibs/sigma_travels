@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { DEMO_CUSTOMERS, DEMO_SAMPLES, sampleUrl, type DemoCustomer, type DemoSample } from "./demo";
-import { VOICE_MAX_SECONDS } from "../../shared/voice";
+import { VOICE_MAX_SECONDS, type VoiceCheck } from "../../shared/voice";
 import { api } from "../lib/api";
 
-type Phase = "idle" | "recording" | "recorded" | "sending" | "sent";
+type Phase = "idle" | "recording" | "recorded" | "sending" | "ask" | "sent";
+type Answers = { from: string; to: string; date: string };
+const NO_ANSWERS: Answers = { from: "", to: "", date: "" };
 
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
@@ -40,6 +42,11 @@ export function VoiceMessage() {
   const [clip, setClip] = useState<{ blob: Blob; url: string; mime: string; seconds: number } | null>(null);
   const [error, setError] = useState<string>();
   const [sample, setSample] = useState<string>();
+  /** The message as read by the server, while it still misses details (from, to, date). */
+  const [check, setCheck] = useState<VoiceCheck | null>(null);
+  const [answers, setAnswers] = useState<Answers>(NO_ANSWERS);
+  /** An incomplete message the next recording replaces (Record again from the questions). */
+  const [replaces, setReplaces] = useState<string>();
   const recRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunks = useRef<Blob[]>([]);
@@ -122,12 +129,38 @@ export function VoiceMessage() {
     setError(undefined);
     setPhase("sending");
     try {
-      await api.voice.send({ name: name.trim(), phone: phone.trim(), email: email.trim(), audio: await toBase64(clip.blob), mime: clip.mime, seconds: clip.seconds });
-      setPhase("sent");
+      const res = await api.voice.send({ name: name.trim(), phone: phone.trim(), email: email.trim(), audio: await toBase64(clip.blob), mime: clip.mime, seconds: clip.seconds, ...(replaces ? { replaces } : {}) });
+      afterCheck(res);
     } catch (err) {
       setError((err as Error).message);
       setPhase("recorded");
     }
+  }
+
+  /** Complete: sent. Otherwise ask for what's missing. */
+  function afterCheck(res: VoiceCheck) {
+    setError(undefined);
+    if (!res.missing.length) { setCheck(null); setReplaces(undefined); setPhase("sent"); return; }
+    setCheck(res);
+    setAnswers((a) => ({ ...NO_ANSWERS, ...Object.fromEntries(res.missing.filter((q) => q.key !== "speech").map((q) => [q.key, a[q.key as keyof Answers] ?? ""])) }));
+    setPhase("ask");
+  }
+
+  async function sendAnswers(e: FormEvent) {
+    e.preventDefault();
+    if (!check) return;
+    const empty = check.missing.find((q) => q.key !== "speech" && !answers[q.key as keyof Answers].trim());
+    if (empty) return setError(`Please answer: ${empty.question}`);
+    setError(undefined);
+    setPhase("sending");
+    try { afterCheck(await api.voice.answer(check.id, answers)); }
+    catch (err) { setError((err as Error).message); setPhase("ask"); }
+  }
+
+  /** From the questions: record a new message instead (the incomplete one is closed when the new one is sent). */
+  function recordAgain() {
+    if (check) setReplaces(check.id);
+    setCheck(null); setAnswers(NO_ANSWERS); again();
   }
 
   // Hooks stay above the early return below (React needs the same hooks on every render).
@@ -145,11 +178,42 @@ export function VoiceMessage() {
     );
   }
 
+  if (check && (phase === "ask" || phase === "sending")) {
+    const needsVoice = check.missing.some((q) => q.key === "speech");
+    const asking = phase === "sending";
+    return (
+      <section className="desk-hero voice-card" aria-labelledby="vm-h">
+        <div>
+          <p className="eyebrow">Almost done</p>
+          <h2 id="vm-h">We need a little more</h2>
+          <p className="hint">So Sunny can find real flights for you, please tell us {needsVoice ? "your message again" : check.missing.length > 1 ? "these details" : "this detail"}.</p>
+        </div>
+        {check.heard && !needsVoice && <blockquote className="vm-heard"><span className="lbl">Your message</span>{check.heard}</blockquote>}
+        <form className="vm-ask" onSubmit={sendAnswers} noValidate>
+          {check.missing.map((q) => q.key === "speech"
+            ? <p key={q.key} className="vm-q">{q.question}</p>
+            : <div key={q.key} className="field">
+                <label className="vm-q" htmlFor={`vm-a-${q.key}`}>{q.question}</label>
+                <input id={`vm-a-${q.key}`} placeholder={q.placeholder} maxLength={q.key === "date" ? 60 : 80} value={answers[q.key as keyof Answers]}
+                  onChange={(e) => { setAnswers({ ...answers, [q.key]: e.target.value }); setError(undefined); }} disabled={asking} />
+              </div>)}
+          {error && <p className="err-text" role="alert">{error}</p>}
+          <div className="vm-send">
+            {!needsVoice && <button className="btn solid big send-btn" type="submit" disabled={asking}>{asking ? "Checking…" : "Send to Sunny"}</button>}
+            <button className={`btn${needsVoice ? " solid big" : ""}`} type="button" onClick={recordAgain} disabled={asking}>🎤 Record again</button>
+            <span className="hint" role="status">{asking ? "Checking your answer…" : ""}</span>
+          </div>
+        </form>
+      </section>
+    );
+  }
+
   const busy = phase === "sending";
   const picked = DEMO_SAMPLES.find((x) => x.id === sample);
   const ready = clip ? (picked ? `Sample “${picked.label}” ready` : `Your ${clock(clip.seconds)} message is ready`) : "";
   const contact = phone.trim() ? `Sunny will call ${phone.trim()}` : email.trim() ? `Sunny will email ${email.trim()}` : "";
-  const status = phase === "recording" ? "Recording… press Stop when you're done"
+  const status = busy ? "Reading your message… this takes about 15 seconds"
+    : phase === "recording" ? "Recording… press Stop when you're done"
     : ready ? [ready, contact].filter(Boolean).join(" · ") : "Record a message or pick a sample first";
   return (
     <section className="desk-hero voice-card" aria-labelledby="vm-h">
@@ -236,7 +300,7 @@ export function VoiceMessage() {
 
         {error && <p className="err-text" role="alert">{error}</p>}
         <div className="vm-send">
-          <button className="btn solid big send-btn" type="submit" disabled={busy || !clip}>{busy ? "Sending…" : "Request Tickets"}</button>
+          <button className="btn solid big send-btn" type="submit" disabled={busy || !clip}>{busy ? "Checking…" : "Request Tickets"}</button>
           <span className="hint" role="status">{status}</span>
         </div>
       </form>
