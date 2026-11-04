@@ -1,6 +1,7 @@
 import type { PDFFont, PDFImage, PDFPage, RGB } from "pdf-lib";
-import { dayShift, hm, travellers, type FlightOption, type ShortlistItem } from "./flights.js";
+import { currencyOf, dayShift, hm, travellers, type FlightOption, type ShortlistItem } from "./flights.js";
 import { AIRPORTS } from "./airports.js";
+import { moneyPdf } from "./currency.js";
 import { safe } from "./pdfText.js";
 import { CONTACT_EMAIL } from "./contact.js";
 
@@ -28,7 +29,6 @@ function longDate(s: string): string {
   return `${DOW[d.getUTCDay()]} ${+m[3]} ${MON[+m[2] - 1]} ${m[1]}`;
 }
 const clock = (s: string) => (/\s(\d{1,2}:\d{2})/.exec(s)?.[1] ?? "").padStart(5, "0");
-const inr = (n: number) => "INR " + Math.round(n).toLocaleString("en-IN");
 /** "COK" → "Kochi (COK)"; falls back to the airport name Google gives. */
 const place = (code: string, name = "") => AIRPORTS.find((a) => a.endsWith(`(${code})`)) ?? (name ? `${name} (${code})` : code);
 const today = () => { const d = new Date(); return `${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()}`; };
@@ -146,8 +146,8 @@ export async function buildItineraryPdf(customer: PdfCustomer, items: ShortlistI
     text(fit(airlines, 13, bold, W - 260), M + 70, y, 13, bold);
     const people = it.query.adults + it.query.children + it.query.infants;
     if (it.price != null) {
-      right(inr(it.price), PW - M - 16, y, 14, bold);
-      right(`total for ${travellers(it.query)}${people > 1 ? ` · about ${inr(it.price / people)} each` : ""}`, PW - M - 16, y - 12, 8.5, font, C.muted);
+      right(moneyPdf(it.price, currencyOf(it)), PW - M - 16, y, 14, bold);
+      right(`total for ${travellers(it.query)}${people > 1 ? ` · about ${moneyPdf(it.price / people, currencyOf(it))} each` : ""}`, PW - M - 16, y - 12, 8.5, font, C.muted);
     } else right("Price on request", PW - M - 16, y, 11, bold, C.muted);
     y -= HEAD - 22;
     flight(it.out, it.back || it.query.return ? "Outbound" : "Flight");

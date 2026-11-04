@@ -1,4 +1,5 @@
-import { hm, rupees, topThree, travellers, type VoiceFlights } from "../shared/flights.js";
+import { money } from "../shared/currency.js";
+import { currencyOf, hm, topThree, travellers, type VoiceFlights } from "../shared/flights.js";
 import { properName, type VoiceTrip } from "../shared/voice.js";
 import type { VoiceRow } from "./supabase.js";
 
@@ -88,7 +89,7 @@ export function voiceEmail(row: VoiceRow, trip: VoiceTrip | null, flights: Voice
 <tr>${th("Flight")}${th("Departs")}${th("Stops · time")}${th("Price", "right")}</tr>
 ${top.map(({ option: o, reason }) => {
   const a = o.legs[0];
-  return `<tr>${td(`<b>${esc(o.airline)}</b><br><span style="font-size:12px;color:${C.orange};font-weight:bold">${esc(reason)}</span>`)}${td(`<b>${clock(a.dep)}</b><br><span style="font-size:12px;color:${C.muted}">${esc(day(a.dep.slice(0, 10)))}</span>`)}${td(`${o.layovers.length ? `${o.layovers.length} stop${o.layovers.length > 1 ? "s" : ""}` : "Nonstop"}<br><span style="font-size:12px;color:${C.muted}">${hm(o.minutes)}${o.layovers.length ? ` · via ${esc(o.layovers.map((l) => l.airport).join(", "))}` : ""}</span>`)}${td(`<b>${esc(rupees(o.price))}</b>`, "right")}</tr>`;
+  return `<tr>${td(`<b>${esc(o.airline)}</b><br><span style="font-size:12px;color:${C.orange};font-weight:bold">${esc(reason)}</span>`)}${td(`<b>${clock(a.dep)}</b><br><span style="font-size:12px;color:${C.muted}">${esc(day(a.dep.slice(0, 10)))}</span>`)}${td(`${o.layovers.length ? `${o.layovers.length} stop${o.layovers.length > 1 ? "s" : ""}` : "Nonstop"}<br><span style="font-size:12px;color:${C.muted}">${hm(o.minutes)}${o.layovers.length ? ` · via ${esc(o.layovers.map((l) => l.airport).join(", "))}` : ""}</span>`)}${td(`<b>${esc(money(o.price, currencyOf(search)))}</b>`, "right")}</tr>`;
 }).join("\n")}
 </table>
 <div style="${font}font-size:12px;color:${C.muted};margin:8px 0 0">${search.options.length} flights found. Prices are the total for ${esc(travellers(search.query))}${roundTrip ? ", round trip" : ", one way"}, from Google Flights at ${searchedAt} IST; they can change.</div>
@@ -137,7 +138,7 @@ ${flightsBlock ? section(flightsBlock) : ""}
     tripRows.length ? ["TRIP", ...tripRows.map(([k, v]) => `${k}: ${v}`)].join("\n") : "",
     trip?.missing.length ? `STILL TO CONFIRM: ${trip.missing.join(", ")}` : "",
     row.transcript_en ? (english ? `WHAT THEY SAID\n"${row.transcript_en}"` : `WHAT THEY SAID\nOriginal (${lang}): ${row.transcript ?? ""}\nEnglish: "${row.transcript_en}"`) : `WHAT THEY SAID\n${row.error ?? "Couldn't be turned into text."}`,
-    top.length ? [`TOP ${top.length} FLIGHT PICKS`, ...top.map(({ option: o, reason }, i) => `${i + 1}. ${o.airline} · ${clock(o.legs[0].dep)} ${day(o.legs[0].dep.slice(0, 10))} · ${o.layovers.length ? `${o.layovers.length} stop` : "nonstop"} · ${hm(o.minutes)} · ${rupees(o.price)} (${reason})`),
+    top.length ? [`TOP ${top.length} FLIGHT PICKS`, ...top.map(({ option: o, reason }, i) => `${i + 1}. ${o.airline} · ${clock(o.legs[0].dep)} ${day(o.legs[0].dep.slice(0, 10))} · ${o.layovers.length ? `${o.layovers.length} stop` : "nonstop"} · ${hm(o.minutes)} · ${money(o.price, currencyOf(search))} (${reason})`),
       `${pdfAttached ? "The Top 3 itinerary is attached as a PDF.\n" : ""}Total for ${travellers(search!.query)}${roundTrip ? ", round trip" : ", one way"}; from Google Flights, can change.`].join("\n") : flights?.note ?? "",
     `Open the Agent Desk: ${desk}`,
     "Automatic message from the Sigma Travels AI Voice Assistant.",

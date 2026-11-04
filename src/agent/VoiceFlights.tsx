@@ -1,6 +1,7 @@
 import { useMemo, useState, type FormEvent } from "react";
+import { money } from "../../shared/currency";
 import {
-  autoSearchBlockers, CABIN_OPTIONS, dayShift, hm, queryFromTrip, rupees, SHORTLIST_MAX, topThree,
+  autoSearchBlockers, CABIN_OPTIONS, currencyOf, dayShift, hm, queryFromTrip, SHORTLIST_MAX, topThree,
   timeOnly, travellers, niceTime, type FlightOption, type FlightQuery, type ShortlistItem,
 } from "../../shared/flights";
 import type { VoiceRequest } from "../../shared/voice";
@@ -129,7 +130,7 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
   }
 
   const item = (out: FlightOption, back: FlightOption | null): ShortlistItem => ({
-    id: `${out.id}|${back?.id ?? ""}`, out, back, price: back ? back.price : out.price, query: search!.query, googleUrl: search!.googleUrl, addedAt: new Date().toISOString(),
+    id: `${out.id}|${back?.id ?? ""}`, out, back, price: back ? back.price : out.price, query: search!.query, googleUrl: search!.googleUrl, addedAt: new Date().toISOString(), currency: currencyOf(search),
   });
   const add = (out: FlightOption, back: FlightOption | null) => search && void saveList([...shortlist, item(out, back)]);
   const inList = (out: FlightOption, back: FlightOption | null) => shortlist.some((s) => s.id === `${out.id}|${back?.id ?? ""}` && s.query.depart === search?.query.depart);
@@ -157,7 +158,7 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
         : returns.error ? <p className="err-text">{returns.error}</p>
         : returns.options.length === 0 ? <p className="note small">No return flights found for this one.</p>
         : <ol className="vf-list">{returns.options.map((b) => (
-          <li key={b.id}><FlightRow o={b} seats={seats}>
+          <li key={b.id}><FlightRow cur={cur} o={b} seats={seats}>
             <button className="btn solid small-btn" disabled={busy === "save" || full || inList(o, b)} onClick={() => add(o, b)}>{inList(o, b) ? "✓ Added" : "+ Add"}</button>
           </FlightRow></li>))}</ol>}
     </div>);
@@ -166,6 +167,8 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
     : <button className="btn solid small-btn" disabled={busy === "save" || full || inList(o, null)} onClick={() => add(o, null)}>{inList(o, null) ? "✓ Added" : "+ Add"}</button>;
   // Seats that pay: Google's price is for everyone; a lap infant costs little, so "per person" divides by adults + children.
   const seats = Math.max(1, (search?.query.adults ?? 1) + (search?.query.children ?? 0));
+  // Every price in a search is in the starting airport's currency (older searches: rupees).
+  const cur = currencyOf(search);
   const all = search?.options ?? [];
   const clearFilters = () => { setFStops([]); setFAir([]); setFTime([]); setFShort(false); setFNoNight(false); };
   const filtersOn = fStops.length + fAir.length + fTime.length > 0 || fShort || fNoNight;
@@ -184,7 +187,7 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
     [all, fStops, fAir, fTime, fShort, fNoNight, sort]);
   const cheapest = useMemo(() => [...all].filter((o) => o.price != null).sort(sorters.price)[0], [all]);
   const fastest = useMemo(() => [...all].sort(sorters.duration)[0], [all]);
-  const pp = (n: number | null | undefined) => (n == null ? "—" : rupees(Math.round(n / seats)));
+  const pp = (n: number | null | undefined) => (n == null ? "—" : money(n / seats, cur));
   // The Top 3 view: the picks first, the rest folded under "Show N more flights". Filters or another sort show the full list.
   const topView = sort === "best" && !filtersOn && top.length > 0;
 
@@ -271,7 +274,7 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
             {search.query.return && <> – {niceTime(`${search.query.return} 00:00`).slice(0, -6)}</>} · {travellers(search.query)} · {search.query.cabin}
             {!search.query.return && <span className="vt-tag">One way</span>}
             {search.auto && <span className="vt-tag">Found automatically</span>}
-            {search.priceLevel && <span className={`vf-level ${search.priceLevel}`}>Prices are {search.priceLevel} now{search.typical ? ` (usual ${rupees(search.typical[0])}–${rupees(search.typical[1])})` : ""}</span>}
+            {search.priceLevel && <span className={`vf-level ${search.priceLevel}`}>Prices are {search.priceLevel} now{search.typical ? ` (usual ${money(search.typical[0], cur)}–${money(search.typical[1], cur)})` : ""}</span>}
             <span className="hint small"> · searched {new Date(search.at).toLocaleString(undefined, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}</span>
           </p>
 
@@ -327,7 +330,7 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
                     <ol className="vf-list">
                       {top.map((t) => (
                         <li key={t.option.id}>
-                          <FlightRow o={t.option} why={t.reason} seats={seats}>{action(t.option, "top")}</FlightRow>
+                          <FlightRow cur={cur} o={t.option} why={t.reason} seats={seats}>{action(t.option, "top")}</FlightRow>
                           {returnsPanel(t.option, "top")}
                         </li>))}
                     </ol>
@@ -341,7 +344,7 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
                       <>
                         <ol className="vf-list">
                           {all.filter((o) => !topReason.has(o.id)).map((o) => (
-                            <li key={o.id}><FlightRow o={o} seats={seats}>{action(o, "list")}</FlightRow>{returnsPanel(o, "list")}</li>))}
+                            <li key={o.id}><FlightRow cur={cur} o={o} seats={seats}>{action(o, "list")}</FlightRow>{returnsPanel(o, "list")}</li>))}
                         </ol>
                         <div className="vf-more"><button type="button" className="btn small-btn" aria-expanded="true" onClick={() => setListOpen(false)}>▴ Hide the other flights</button></div>
                       </>
@@ -353,7 +356,7 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
                     <ol className="vf-list">
                       {(showAll ? shown : shown.slice(0, PAGE)).map((o) => (
                         <li key={o.id}>
-                          <FlightRow o={o} seats={seats} tag={topReason.has(o.id) ? "Top pick" : undefined}>{action(o, "list")}</FlightRow>
+                          <FlightRow cur={cur} o={o} seats={seats} tag={topReason.has(o.id) ? "Top pick" : undefined}>{action(o, "list")}</FlightRow>
                           {returnsPanel(o, "list")}
                         </li>
                       ))}
@@ -387,7 +390,7 @@ export function VoiceFlights({ v, onChange }: { v: VoiceRequest; onChange: (r: V
                 {shortlist.map((s, i) => (
                   <li key={s.id + i} className="vf-short-item">
                     <div>
-                      <b>Option {i + 1} · {rupees(s.price)}</b> <span className="hint small">for {travellers(s.query)} · {s.query.cabin}{s.back ? " · return trip" : ""}</span>
+                      <b>Option {i + 1} · {money(s.price, currencyOf(s))}</b> <span className="hint small">for {travellers(s.query)} · {s.query.cabin}{s.back ? " · return trip" : ""}</span>
                       <FlightLine o={s.out} />
                       {s.back && <FlightLine o={s.back} label="Return" />}
                     </div>
@@ -415,7 +418,7 @@ const cityOf = (code: string, name: string) => AIRPORTS.find((a) => a.endsWith(`
 
 /** One flight, Expedia-style: times on a line with a dot per stop, route and flight numbers, stops, per-person and total price.
  * `why` = the reason on a Top 3 pick; `tag` = "Top pick" on the same flight in the full list. */
-function FlightRow({ o, why, tag, seats, children }: { o: FlightOption; why?: string; tag?: string; seats: number; children: React.ReactNode }) {
+function FlightRow({ o, why, tag, seats, cur, children }: { o: FlightOption; why?: string; tag?: string; seats: number; cur: string; children: React.ReactNode }) {
   const a = o.legs[0], z = o.legs[o.legs.length - 1], plus = dayShift(a.dep, z.arr);
   const n = o.layovers.length;
   const code = (o.legs[0].flightNo.match(/^[A-Z0-9]{2}/)?.[0] ?? o.airline.slice(0, 2)).toUpperCase();
@@ -437,8 +440,8 @@ function FlightRow({ o, why, tag, seats, children }: { o: FlightOption; why?: st
         <span className="hint small">{n === 0 ? "Direct flight" : o.layovers.map((l) => `${hm(l.minutes)} in ${l.name ? `${l.name.replace(/ (International )?Airport$/i, "")} (${l.airport})` : l.airport}${l.overnight ? " · overnight" : ""}`).join(", ")}</span>
       </div>
       <div className="vf-price">
-        <b>{o.price == null ? "—" : rupees(Math.round(o.price / seats))}</b>
-        <span className="hint small">{seats > 1 && o.price != null ? `per person · ${rupees(o.price)} total` : "total"}</span>
+        <b>{o.price == null ? "—" : money(o.price / seats, cur)}</b>
+        <span className="hint small">{seats > 1 && o.price != null ? `per person · ${money(o.price, cur)} total` : "total"}</span>
         <div className="vf-act">{children}</div>
       </div>
     </div>
