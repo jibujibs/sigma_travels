@@ -36,7 +36,7 @@ export const POST = handle(async (request) => {
   } catch {
     throw new HttpError(400, "The plan to save is incomplete");
   }
-  const saved = await saveTrip(userId, body.brief, { plan, sel: body.sel, carOn: body.carOn, food: body.food }, body.total);
+  const saved = await saveTrip(userId, body.brief, { plan, sel: body.sel, carOn: body.carOn, food: body.food }, body.total, plan.price_currency);
   return json({ id: saved.id, createdAt: saved.created_at });
 });
 

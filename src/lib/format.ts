@@ -3,6 +3,8 @@ export const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep
 
 export const inr = (n: number) => "₹" + Math.round(n || 0).toLocaleString("en-IN");
 export const inrPlain = (n: number) => "Rs " + Math.round(n || 0).toLocaleString("en-IN");
+/** Money in a plan's currency (plans saved before currencies were added are in rupees). */
+export const planCur = (p: { price_currency?: string } | null | undefined) => p?.price_currency || "INR";
 
 export function parseISO(s: string): Date {
   const [y, m, d] = s.split("-").map(Number);

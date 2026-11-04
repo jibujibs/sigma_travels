@@ -35,6 +35,8 @@ const CURRENCY_OF_COUNTRY: Record<string, string> = {
   ZA: "ZAR", KE: "KES", EG: "EGP", ET: "ETB", MA: "MAD", NG: "NGN", MU: "MUR", SC: "SCR", TZ: "TZS",
 };
 
+import { airportFor } from "./airports.js";
+
 /** The default when the starting airport isn't known. */
 export const DEFAULT_CURRENCY = "USD";
 
@@ -68,3 +70,17 @@ export function moneyPdf(n: number, currency = "INR"): string {
   const cur = (currency || "INR").toUpperCase();
   return cur === "INR" ? `INR ${Math.round(n).toLocaleString("en-IN")}` : money(n, cur);
 }
+
+/** "Kochi (COK)" / "COK" / "Trivandrum" → that airport's currency; unknown → US dollars. For the planner's From box. */
+export function currencyForPlace(place: string): string {
+  const code = /\(([A-Za-z]{3})\)\s*$/.exec(place.trim())?.[1] ?? (/^[A-Za-z]{3}$/.test(place.trim()) ? place.trim() : airportFor(place));
+  return currencyForAirport(code || "");
+}
+
+const NAME: Record<string, string> = {
+  INR: "Indian rupees", USD: "US dollars", AED: "UAE dirhams", QAR: "Qatari riyals", OMR: "Omani rials", BHD: "Bahraini dinars",
+  KWD: "Kuwaiti dinars", SAR: "Saudi riyals", GBP: "British pounds", EUR: "euros", SGD: "Singapore dollars", CAD: "Canadian dollars",
+  AUD: "Australian dollars", MYR: "Malaysian ringgit", THB: "Thai baht", JPY: "Japanese yen", CHF: "Swiss francs",
+};
+/** "USD" → "US dollars (USD)", for the Gemini prompt. */
+export const currencyName = (cur: string) => `${NAME[cur] ?? cur} (${cur})`;

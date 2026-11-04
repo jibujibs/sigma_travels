@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Flight } from "../../shared/types";
-import { addDays, DOW, fmtDate, inr, iso, originCity, parseISO, todayUTC } from "../lib/format";
+import { addDays, DOW, fmtDate, iso, originCity, parseISO, planCur, todayUTC } from "../lib/format";
+import { money } from "../../shared/currency";
 import { buildDays, homeCode, needsList, picks, planNeeds, price, tripLength, type FoodStyle, type PlanState, type Selection } from "../lib/trip";
 import { buildTripPdf } from "../lib/pdf";
 import { api } from "../lib/api";
@@ -18,13 +19,13 @@ interface Props {
   saved?: boolean;
 }
 
-function FlightCard({ f }: { f: Flight }) {
+function FlightCard({ f, cur }: { f: Flight; cur: string }) {
   return (
     <>
       <span className="name">{f.airline}</span>
       <span className="times">{f.depart} → {f.arrive}{f.arrive_next_day ? " +1" : ""}</span>
       <span className="meta">{f.stops}{f.duration ? ` · ${f.duration}` : ""}</span>
-      <span className="price">{inr(f.fare_inr)}</span>
+      <span className="price">{money(f.fare_inr, cur)}</span>
     </>
   );
 }
@@ -75,6 +76,8 @@ export function PlanView({ state, example, model, onChange, onPdf, onNewTrip, to
   const len = tripLength(state);
   const days = buildDays(state);
   const q = price(state);
+  // Every amount is in the plan's currency: the From airport's (older saved trips: rupees).
+  const inr = (n: number) => money(n, planCur(state.plan));
   const d = days.length ? days[Math.min(day, days.length - 1)] : undefined;
   const start = parseISO(brief.start);
   const end = addDays(start, len - 1);
@@ -163,9 +166,9 @@ export function PlanView({ state, example, model, onChange, onPdf, onNewTrip, to
           {n.flights && <section aria-labelledby="h-flights">
             <div className="sec-head"><h2 id="h-flights">Flights</h2><p>Per person, one way</p></div>
             <div className="sub">Day 1 · {plan.flights.outbound[0]?.route || "Outbound"}</div>
-            <div className="opts">{plan.flights.outbound.map((f, i) => <button key={i} className="opt" aria-pressed={sel.out === i} onClick={() => pick("out", i)}><FlightCard f={f} /></button>)}</div>
+            <div className="opts">{plan.flights.outbound.map((f, i) => <button key={i} className="opt" aria-pressed={sel.out === i} onClick={() => pick("out", i)}><FlightCard f={f} cur={planCur(plan)} /></button>)}</div>
             <div className="sub">Day {len} · {fmtDate(end)} · {plan.flights.return[0]?.route || "Return"}</div>
-            <div className="opts">{plan.flights.return.map((f, i) => <button key={i} className="opt" aria-pressed={sel.ret === i} onClick={() => pick("ret", i)}><FlightCard f={f} /></button>)}</div>
+            <div className="opts">{plan.flights.return.map((f, i) => <button key={i} className="opt" aria-pressed={sel.ret === i} onClick={() => pick("ret", i)}><FlightCard f={f} cur={planCur(plan)} /></button>)}</div>
           </section>}
 
           {n.hotel && <section aria-labelledby="h-hotel">

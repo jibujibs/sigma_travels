@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { AIRPORTS } from "../shared/airports";
+import { currencyForPlace } from "../shared/currency";
 import { ALL_NEEDS, isFullTrip, needsOf, type Intent, type Needs, type Recommendation, type TripBrief } from "../shared/types";
 import { AccountMenu } from "./components/AccountMenu";
 import { CopilotDrawer } from "./components/CopilotDrawer";
@@ -65,6 +66,7 @@ export default function App({ user, onSaveHomeAirport, onSignOut, nav, brand }: 
   const [prefillNote, setPrefillNote] = useState(prefill ? prefillMessage(prefill.from, prefill.trip) : "");
   const [editAirport, setEditAirport] = useState(false);
   const [recs, setRecs] = useState<Recommendation[] | null>(null);
+  const [recsCur, setRecsCur] = useState("USD");
   const [planState, setPlanState] = useState<PlanState | null>(null);
   const [model, setModel] = useState<string | undefined>();
   const [busy, setBusy] = useState<Busy>(null);
@@ -186,6 +188,7 @@ export default function App({ user, onSaveHomeAirport, onSignOut, nav, brand }: 
     // New recommendations replace the old ones and clear the previous destination's plan
     // until the traveller picks one of the new destinations.
     setRecs(r.destinations);
+    setRecsCur(r.currency || currencyForPlace(b.origin));
     setPlanState(null);
     setModel(r.model);
     setTimeout(() => document.getElementById("recs")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
@@ -327,7 +330,7 @@ export default function App({ user, onSaveHomeAirport, onSignOut, nav, brand }: 
         </div>
       )}
 
-      {recs && <div id="recs"><Recommendations recs={recs} planned={planState?.plan.destination.city} pax={brief.pax} busy={!!busy} onPlan={plan} /></div>}
+      {recs && <div id="recs"><Recommendations recs={recs} planned={planState?.plan.destination.city} pax={brief.pax} currency={recsCur} busy={!!busy} onPlan={plan} /></div>}
 
       {planState && <PlanView
         key={`${planState.plan.destination.city}-${planState.brief.start}-${tripLength(planState)}-${needsList(planNeeds(planState)).join("")}`}

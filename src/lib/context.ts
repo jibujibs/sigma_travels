@@ -1,5 +1,6 @@
 import type { Recommendation, TripBrief } from "../../shared/types";
-import { fmtDate, inr } from "./format";
+import { fmtDate, planCur } from "./format";
+import { currencyForPlace, money } from "../../shared/currency";
 import { buildDays, FOOD_LABEL, needsList, picks, planNeeds, price, tripLength, type PlanState } from "./trip";
 
 /** Plain-text summary of what the traveller sees, sent to Sigma Copilot with each question. */
@@ -7,10 +8,11 @@ export function copilotContext(brief: TripBrief, recs: Recommendation[] | null, 
   const out: string[] = [];
   out.push(`Form: from ${brief.origin}; idea "${brief.idea || "-"}"; start ${brief.start}; ${brief.days} days; ${brief.pax} adult(s); ${brief.budget}; interests ${brief.interests.join(", ") || "-"}.`);
   if (recs?.length) {
-    out.push("Recommended destinations: " + recs.map((r) => `${r.city}, ${r.country} (${r.airport}): ${r.tagline}; visa ${r.visa}; weather ${r.weather}; est. ${inr(r.est_total_inr)}`).join(" | "));
+    out.push("Recommended destinations: " + recs.map((r) => `${r.city}, ${r.country} (${r.airport}): ${r.tagline}; visa ${r.visa}; weather ${r.weather}; est. ${money(r.est_total_inr, currencyForPlace(brief.origin))}`).join(" | "));
   }
   if (plan) {
-    const p = plan.plan, n = planNeeds(plan), { out: o, ret, hotel, car } = picks(plan), q = price(plan), days = buildDays(plan);
+    out.push(`Prices are estimates in ${planCur(plan.plan)}.`);
+    const p = plan.plan, cur = planCur(plan.plan), inr = (x: number) => money(x, cur), n = planNeeds(plan), { out: o, ret, hotel, car } = picks(plan), q = price(plan), days = buildDays(plan);
     out.push(`Current plan: ${p.destination.city}, ${p.destination.country} (${p.destination.airport}), ${tripLength(plan)} day(s) from ${plan.brief.start}, ${plan.brief.pax} adult(s). Shows only: ${needsList(n).join(", ")}. ${p.destination.summary}`);
     if (n.flights && o && ret) {
       out.push(`Selected outbound: ${o.airline} ${o.route} ${o.depart}-${o.arrive}${o.arrive_next_day ? "+1" : ""}, ${o.stops}, ${inr(o.fare_inr)} pp. Return: ${ret.airline} ${ret.route} ${ret.depart}-${ret.arrive}${ret.arrive_next_day ? "+1" : ""}, ${ret.stops}, ${inr(ret.fare_inr)} pp.`);

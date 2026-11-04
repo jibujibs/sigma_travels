@@ -87,6 +87,8 @@ export interface PlanDay {
 
 export interface TripPlan {
   needs: Needs; // which parts Gemini was asked for; the rest are empty
+  /** Currency of every amount in the plan (the From airport's: "INR", "USD"…). The *_inr field names are historical. */
+  price_currency?: string;
   destination: { city: string; country: string; airport: string; currency: string; summary: string };
   flights: { outbound: Flight[]; return: Flight[] };
   hotels: Hotel[];
@@ -113,6 +115,8 @@ export interface IntentResponse extends Intent {
 
 export interface RecommendResponse {
   destinations: Recommendation[];
+  /** Currency of est_total_inr (the From airport's). */
+  currency?: string;
   model: string;
 }
 export interface PlanResponse {
