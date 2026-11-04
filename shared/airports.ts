@@ -35,10 +35,15 @@ export const AIRPORTS: string[] = [
   "Lagos (LOS)", "Mauritius (MRU)", "Seychelles (SEZ)", "Zanzibar (ZNZ)",
 ];
 
+/** Airport codes that are also everyday words ("price per person"): not read as a code on their own. */
+const COMMON_WORDS = new Set(["per", "man", "sin"]);
+
 /** Other names people say for a city in the list. */
 const ALIASES: Record<string, string> = {
   cochin: "Kochi", ernakulam: "Kochi", thiruvananthapuram: "Trivandrum", calicut: "Kozhikode", bombay: "Mumbai",
   bangalore: "Bengaluru", madras: "Chennai", calcutta: "Kolkata", "new delhi": "Delhi", "new york": "New York JFK", nyc: "New York JFK",
+  // Short forms people type in Kerala.
+  tvm: "Trivandrum", tvpm: "Trivandrum", ekm: "Kochi", clt: "Kozhikode",
 };
 
 /**
@@ -50,5 +55,8 @@ export function airportFor(city: string): string {
   if (!c) return "";
   const name = (ALIASES[c] ?? c).toLowerCase();
   const hit = AIRPORTS.find((a) => a.slice(0, a.lastIndexOf(" (")).toLowerCase() === name);
-  return hit ? hit.slice(-4, -1) : "";
+  if (hit) return hit.slice(-4, -1);
+  // An airport code typed on its own ("trv", "COK"), when it's one in our list.
+  const code = /^[a-z]{3}$/.test(c) && !COMMON_WORDS.has(c) ? AIRPORTS.find((a) => a.endsWith(`(${c.toUpperCase()})`)) : undefined;
+  return code ? code.slice(-4, -1) : "";
 }
