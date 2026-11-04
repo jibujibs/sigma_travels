@@ -1,5 +1,6 @@
 import type { FlightLeg, FlightOption, FlightQuery, FlightSearch } from "../shared/flights.js";
 import { HttpError } from "./http.js";
+import { countryOfAirport, currencyForAirport } from "../shared/currency.js";
 
 /**
  * Google Flights results through SerpApi (https://serpapi.com/google-flights-api).
@@ -23,9 +24,10 @@ function params(q: FlightQuery): Record<string, string> {
     infants_on_lap: String(q.infants),
     travel_class: CLASS[q.cabin],
     stops: STOPS[q.stops],
-    currency: "INR",
+    // Prices in the starting airport's currency, as an airline would quote them there (unknown airport: US dollars).
+    currency: currencyForAirport(q.from),
     hl: "en",
-    gl: "in",
+    gl: (countryOfAirport(q.from) || "us").toLowerCase(),
   };
 }
 
@@ -110,6 +112,7 @@ export async function searchFlights(q: FlightQuery, auto = false): Promise<Fligh
     priceLevel: str(body.price_insights?.price_level),
     typical: Array.isArray(range) && range.length === 2 ? [num(range[0]), num(range[1])] : null,
     ...(auto ? { auto: true } : {}),
+    currency: currencyForAirport(q.from),
   };
 }
 

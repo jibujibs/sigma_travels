@@ -1,4 +1,5 @@
-import { dayShift, hm, rupees, travellers, type FlightOption, type ShortlistItem } from "../shared/flights.js";
+import { money } from "../shared/currency.js";
+import { currencyOf, dayShift, hm, travellers, type FlightOption, type ShortlistItem } from "../shared/flights.js";
 import { properName } from "../shared/voice.js";
 import { AIRPORTS } from "../shared/airports.js";
 import { CONTACT_EMAIL } from "../shared/contact.js";
@@ -54,8 +55,8 @@ export function customerPdfEmail(customerName: string, items: ShortlistItem[], n
   <div style="font-size:14px;color:${C.ink};margin-top:3px">${esc(legLine(it.out))}</div>
   ${it.back ? `<div style="font-size:14px;color:${C.ink};margin-top:3px">Return: ${esc(legLine(it.back))}</div>` : ""}
 </td><td align="right" style="${font}padding:12px 14px;border-bottom:1px solid ${C.line};vertical-align:top;white-space:nowrap">
-  <div style="font-size:16px;font-weight:bold;color:${C.ink}">${esc(rupees(it.price))}</div>
-  ${it.price != null && people > 1 ? `<div style="font-size:12px;color:${C.muted}">about ${esc(rupees(Math.round(it.price / people)))} each</div>` : ""}
+  <div style="font-size:16px;font-weight:bold;color:${C.ink}">${esc(money(it.price, currencyOf(it)))}</div>
+  ${it.price != null && people > 1 ? `<div style="font-size:12px;color:${C.muted}">about ${esc(money(it.price / people, currencyOf(it)))} each</div>` : ""}
 </td></tr>`;
   }).join("\n");
 
@@ -87,7 +88,7 @@ export function customerPdfEmail(customerName: string, items: ShortlistItem[], n
     `Hi ${first},`,
     `Here ${items.length > 1 ? `are ${items.length} flight options` : "is a flight option"} for your trip from ${cityFrom} (${from}) to ${cityTo} (${to}), ${when}, for ${who}. The full details are in the attached PDF.`,
     note,
-    items.map((it, i) => `Option ${i + 1}: ${legLine(it.out)}${it.back ? `\n   Return: ${legLine(it.back)}` : ""}\n   ${rupees(it.price)} total`).join("\n\n"),
+    items.map((it, i) => `Option ${i + 1}: ${legLine(it.out)}${it.back ? `\n   Return: ${legLine(it.back)}` : ""}\n   ${money(it.price, currencyOf(it))} total`).join("\n\n"),
     "Prices are from Google Flights today and can change until the tickets are booked.",
     `To book, reply to this email with the option you like, or call us on ${SIGMA.phone}.`,
     `Best regards,\nSunny\n${SIGMA.company}\n${SIGMA.address} · ${SIGMA.email} · ${SIGMA.web}`,

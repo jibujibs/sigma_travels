@@ -9,7 +9,7 @@ import { originOf } from "../server/payments.js";
 import { downloadAudio, insertVoice, isMissingColumn, listVoiceLight, signedAudioUrl, updateVoice, uploadAudio, voiceById, type VoiceListRow, type VoiceRow } from "../server/supabase.js";
 import { flightsConfigured, returnFlights, searchFlights } from "../server/flights.js";
 import { readTrip, transcribe } from "../server/voice.js";
-import { autoSearchBlockers, queryFromTrip, topThree, type FlightQuery, type ShortlistItem, type VoiceFlights } from "../shared/flights.js";
+import { autoSearchBlockers, currencyOf, queryFromTrip, topThree, type FlightQuery, type ShortlistItem, type VoiceFlights } from "../shared/flights.js";
 import { customerQuestions, normalizeTrip, properName, withDateCheck, voicePatchSchema, voiceSubmitSchema, type VoiceCheck, type VoiceRequest, type VoiceTrip } from "../shared/voice.js";
 
 /**
@@ -183,7 +183,7 @@ async function top3Pdf(row: VoiceRow, trip: VoiceTrip | null, origin: string): P
     const s = flightsOf(row)?.search;
     if (!s?.options.length) return null;
     const items: ShortlistItem[] = topThree(s.options, trip?.airline ?? "").map((t) => ({
-      id: `${t.option.id}|`, out: t.option, back: null, price: t.option.price, query: s.query, googleUrl: s.googleUrl, addedAt: s.at,
+      id: `${t.option.id}|`, out: t.option, back: null, price: t.option.price, query: s.query, googleUrl: s.googleUrl, addedAt: s.at, currency: currencyOf(s),
     }));
     const png = await fetch(`${origin}/sigma-logo.png`, { signal: AbortSignal.timeout(5_000) })
       .then(async (r) => (r.ok && (r.headers.get("content-type") ?? "").includes("png") ? new Uint8Array(await r.arrayBuffer()) : null))

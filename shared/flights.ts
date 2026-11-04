@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { VoiceTrip } from "./voice.js";
+import { money } from "./currency.js";
 
 /**
  * Real flights for a voice message (phase C), from Google Flights through SerpApi.
@@ -63,7 +64,7 @@ export interface FlightOption {
   legs: FlightLeg[];
   layovers: { airport: string; name: string; minutes: number; overnight: boolean }[];
   minutes: number;
-  /** Google's price in ₹ for all travellers (for a return trip: the whole round trip). null when Google shows none. */
+  /** Google's price for all travellers, in the search's currency (for a return trip: the whole round trip). null when Google shows none. */
   price: number | null;
   /** Google's own top picks ("best flights"). */
   googleBest: boolean;
@@ -80,7 +81,12 @@ export interface FlightSearch {
   typical: [number, number] | null;
   /** True when the app searched by itself after the voice message was read. */
   auto?: boolean;
+  /** Currency of every price in this search: the starting airport's ("INR", "USD"…). Absent on older searches: rupees. */
+  currency?: string;
 }
+
+/** The currency of a saved search or shortlist item; older ones were always in rupees. */
+export const currencyOf = (x: { currency?: string } | null | undefined) => x?.currency || "INR";
 
 /** One option Sunny chose for the customer. */
 export interface ShortlistItem {
@@ -91,6 +97,8 @@ export interface ShortlistItem {
   query: FlightQuery;
   googleUrl: string;
   addedAt: string;
+  /** Currency of price (from the search it was added from); absent on older items: rupees. */
+  currency?: string;
 }
 
 /** Stored in voice_requests.flights. */
@@ -145,7 +153,7 @@ export const travellers = (q: Pick<FlightQuery, "adults" | "children" | "infants
   [q.adults && `${q.adults} adult${q.adults > 1 ? "s" : ""}`, q.children && `${q.children} child${q.children > 1 ? "ren" : ""}`, q.infants && `${q.infants} infant${q.infants > 1 ? "s" : ""}`].filter(Boolean).join(", ");
 
 export const hm = (min: number) => `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, "0")}m`;
-export const rupees = (n: number | null) => (n == null ? "—" : `₹${n.toLocaleString("en-IN")}`);
+export const rupees = (n: number | null) => money(n, "INR");
 export const stopsOf = (o: FlightOption) => o.legs.length - 1;
 
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -221,7 +229,7 @@ export function shortlistText(name: string, items: ShortlistItem[]): string {
   items.forEach((it, i) => {
     lines.push(`Option ${i + 1}: ${legLine(it.out)}`);
     if (it.back) lines.push(`   Return: ${legLine(it.back)}`);
-    lines.push(`   Price: ${rupees(it.price)} total for ${travellers(it.query)}${it.back ? " (return trip)" : ""}`, "");
+    lines.push(`   Price: ${money(it.price, currencyOf(it))} total for ${travellers(it.query)}${it.back ? " (return trip)" : ""}`, "");
   });
   lines.push("Prices are from Google Flights today and can change until the tickets are booked.", "Sunny, Sigma Travels");
   return lines.join("\n");
