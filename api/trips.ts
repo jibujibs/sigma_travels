@@ -67,7 +67,7 @@ export const PATCH = handle(async (request) => {
   const font = "font-family:Arial,Helvetica,sans-serif;";
   const html = `<div style="${font}font-size:15px;line-height:1.5;color:#1d2329;max-width:640px">
 <p style="margin:0 0 12px">Trip itinerary from the Sigma Travels AI Trip Planner, sent by ${esc(user.name || user.email)}. The full itinerary is attached as a PDF.</p>
-${body.note ? `<p style="margin:0 0 12px;padding:10px 14px;background:#f6f7f9;border-left:3px solid #0f766e;border-radius:6px">${esc(body.note).replace(/\n/g, "<br>")}</p>` : ""}
+${body.note ? `<p style="margin:0 0 12px;padding:10px 14px;background:#f6f7f9;border-left:3px solid #c8472b;border-radius:6px">${esc(body.note).replace(/\n/g, "<br>")}</p>` : ""}
 <pre style="${font}white-space:pre-wrap;font-size:14px;background:#f6f7f9;border-radius:8px;padding:12px 14px;margin:0">${esc(body.text)}</pre>
 <p style="margin:12px 0 0;font-size:12px;color:#6b7480">Prices are AI estimates, not live fares. Check availability before booking.</p></div>`;
   const r = await sendEmail({

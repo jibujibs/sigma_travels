@@ -53,7 +53,7 @@ export function voiceEmail(row: VoiceRow, trip: VoiceTrip | null, flights: Voice
   const searchedAt = search ? new Date(search.at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "Asia/Kolkata" }) : "";
 
   /* ---------- HTML ---------- */
-  const C = { ink: "#1d2329", muted: "#6b7480", line: "#e3e6ea", soft: "#f6f7f9", orange: "#f36523", blue: "#2f7fd8", yellow: "#fff3b8", yellowInk: "#2b2400", amber: "#fff4e5", amberLine: "#f5c27a", teal: "#0f766e" };
+  const C = { ink: "#1d2329", muted: "#6b7480", line: "#e3e6ea", soft: "#f6f7f9", orange: "#f36523", blue: "#2f7fd8", yellow: "#fff3b8", yellowInk: "#2b2400", amber: "#fff4e5", amberLine: "#f5c27a", teal: "#c8472b" };
   const font = "font-family:Arial,Helvetica,sans-serif;";
   const label = (s: string) => `<div style="${font}font-size:11px;font-weight:bold;letter-spacing:.06em;text-transform:uppercase;color:${C.muted};margin:0 0 8px">${esc(s)}</div>`;
   const section = (inner: string) => `<tr><td style="padding:0 28px 22px">${inner}</td></tr>`;

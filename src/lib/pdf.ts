@@ -26,9 +26,9 @@ export async function buildTripPdf(state: PlanState): Promise<{ bytes: Uint8Arra
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
 
   const C = {
-    teal: rgb(15 / 255, 118 / 255, 110 / 255), ink: rgb(13 / 255, 42 / 255, 39 / 255), muted: rgb(85 / 255, 112 / 255, 108 / 255),
-    line: rgb(213 / 255, 227 / 255, 224 / 255), soft: rgb(223 / 255, 241 / 255, 238 / 255), zebra: rgb(245 / 255, 249 / 255, 248 / 255),
-    white: rgb(1, 1, 1), sand: rgb(180 / 255, 83 / 255, 42 / 255), gold: rgb(168 / 255, 115 / 255, 12 / 255),
+    teal: rgb(200 / 255, 71 / 255, 43 / 255), ink: rgb(43 / 255, 26 / 255, 20 / 255), muted: rgb(122 / 255, 99 / 255, 89 / 255),
+    line: rgb(236 / 255, 220 / 255, 208 / 255), soft: rgb(253 / 255, 230 / 255, 221 / 255), zebra: rgb(252 / 255, 248 / 255, 244 / 255),
+    white: rgb(1, 1, 1), sand: rgb(163 / 255, 38 / 255, 27 / 255), gold: rgb(168 / 255, 115 / 255, 12 / 255),
   };
   const PW = 595.28, PH = 841.89, M = 42, W = PW - 2 * M, BOTTOM = M + 24;
   let page: PDFPage = doc.addPage([PW, PH]);
