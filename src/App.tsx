@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { AIRPORTS } from "../shared/airports";
 import { ALL_NEEDS, isFullTrip, needsOf, type Intent, type Needs, type Recommendation, type TripBrief } from "../shared/types";
 import { AccountMenu } from "./components/AccountMenu";
 import { CopilotDrawer } from "./components/CopilotDrawer";
@@ -14,6 +15,9 @@ import { addDays, iso, todayUTC } from "./lib/format";
 import { briefFromTrip, clearPlannerPrefill, peekPlannerPrefill, prefillMessage } from "./lib/plannerPrefill";
 import { downloadTripPdf } from "./lib/pdf";
 import { bestReturn, needsList, planNeeds, price, tripLength, type PlanState } from "./lib/trip";
+
+/** "Trivandrum" + "TRV" → the airport list's own label ("Trivandrum (TRV)"), else "City (CODE)". */
+const airportLabel = (city: string, code: string) => AIRPORTS.find((a) => a.endsWith(`(${code})`)) ?? `${city} (${code})`;
 
 const STORE = "sigma-ai-planner-v1";
 
@@ -123,10 +127,11 @@ export default function App({ user, onSaveHomeAirport, onSignOut, nav, brand }: 
     }
   }
 
-  /** Search: read the request, then go straight to the named place or suggest three. */
+    /** Search: read the request, then go straight to the named place or suggest three. */
   async function search() {
     const noIdea = !brief.idea.trim() && brief.interests.length === 0;
-    const noOrigin = brief.origin.trim().length < 2;
+    // An empty From box is fine when there's a request to read: it may say where they fly from.
+    const noOrigin = brief.origin.trim().length < 2 && !brief.idea.trim();
     setFormError(noIdea ? "Describe what you need, pick a famous spot or choose an interest." : undefined);
     setOriginError(noOrigin ? "Enter the city you're flying from." : undefined);
     if (noIdea || noOrigin) {
@@ -145,11 +150,25 @@ export default function App({ user, onSaveHomeAirport, onSignOut, nav, brand }: 
         catch (e) { if ((e as Error).name === "AbortError") throw e; console.warn("Couldn't read the request:", (e as Error).message); return failed; }
       });
       if (!intent) return; // stopped
+      const notes: string[] = [];
+      // The city the request says they fly from always beats the home airport in the From box.
+      const from = intent.origin ? airportLabel(intent.origin.city, intent.origin.airport) : "";
+      if (from && from !== b.origin) {
+        b = { ...b, origin: from };
+        notes.push(`Flying from ${from}, as your request says.`);
+      }
       if (intent.needs) {
         b = { ...b, needs: intent.needs };
-        if (!isFullTrip(intent.needs)) setUnderstood(`Showing ${needsText(intent.needs)} only, as you asked. Tick more above and press Update results to add the rest.`);
+        if (!isFullTrip(intent.needs)) notes.push(`Showing ${needsText(intent.needs)} only, as you asked. Tick more above and press Update results to add the rest.`);
       }
+      if (notes.length) setUnderstood(notes.join(" "));
       place = intent.destination;
+    }
+    if (b.origin.trim().length < 2) {
+      setBrief(b);
+      setOriginError("Enter the city you're flying from.");
+      document.getElementById("origin")?.focus();
+      return;
     }
     setBrief(b);
     setNeedsTouched(false);

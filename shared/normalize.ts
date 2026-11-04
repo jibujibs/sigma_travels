@@ -1,3 +1,4 @@
+import { airportFor } from "./airports.js";
 import { needsOf, type Car, type Flight, type Hotel, type Intent, type Needs, type PlanDay, type Recommendation, type Stop, type TripPlan } from "./types.js";
 
 /* The model's JSON is untrusted: coerce every field into the shape the UI expects. */
@@ -56,10 +57,15 @@ export function normalizeIntent(raw: unknown): Intent {
   const d = obj(r.destination);
   const city = str(d.city);
   const destination = city ? { city, country: str(d.country), airport: str(d.airport).replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase() } : null;
+  const o = obj(r.origin);
+  const oCity = str(o.city);
+  const oCode = str(o.airport).replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase();
+  // A from-city without a known airport code can't be used for flights: leave the traveller's own city.
+  const origin = oCity && (oCode.length === 3 || airportFor(oCity)) ? { city: oCity, airport: oCode.length === 3 ? oCode : airportFor(oCity) } : null;
   const n = obj(r.needs);
   const needs: Needs = { flights: n.flights === true, hotel: n.hotel === true, car: n.car === true, itinerary: n.itinerary === true };
   const any = needs.flights || needs.hotel || needs.car || needs.itinerary;
-  return { destination, needs: r.specific === true && any ? needs : null };
+  return { destination, origin, needs: r.specific === true && any ? needs : null };
 }
 
 /** needs: what was asked for. When omitted (re-saving an existing plan) it is read from the plan itself. */

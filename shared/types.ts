@@ -103,6 +103,8 @@ export interface TripPlan {
 /** What the traveller's free text asks for. destination is null when no single place is named. */
 export interface Intent {
   destination: { city: string; country: string; airport: string } | null;
+  /** Where the request itself says the traveller flies from ("from Trivandrum"); null when not said. Beats the home airport. */
+  origin?: { city: string; airport: string } | null;
   needs: Needs | null; // null when the text doesn't ask for anything specific
 }
 export interface IntentResponse extends Intent {
