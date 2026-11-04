@@ -21,6 +21,8 @@ export const voiceSubmitSchema = z.object({
   audio: z.string().min(100, "The recording is empty. Record your message again.").max(VOICE_MAX_BASE64, "The recording is too large. Keep it under 3 minutes."),
   mime: z.string().regex(/^audio\/[a-z0-9.+-]+(;.*)?$/i, "Unsupported audio format"),
   seconds: z.number().int().min(1).max(VOICE_MAX_SECONDS + 5),
+  /** The earlier, incomplete message this recording replaces (the customer pressed Record again). */
+  replaces: z.string().uuid().optional(),
 }).refine((v) => v.phone.length >= 6 || /^\S+@\S+\.\S+$/.test(v.email), {
   message: "Enter a phone number or an email address so Sunny can contact you.",
   path: ["phone"],
@@ -159,6 +161,10 @@ export const voicePatchSchema = z.union([
   z.object({ id: z.string().uuid(), status: z.enum(["new", "contacted", "ticketed", "closed"]) }),
   z.object({ id: z.string().uuid(), action: z.literal("read-trip") }),
   z.object({ id: z.string().uuid(), action: z.literal("retry") }),
+  z.object({
+    id: z.string().uuid(), action: z.literal("answer"),
+    answers: z.object({ from: z.string().trim().max(80).default(""), to: z.string().trim().max(80).default(""), date: z.string().trim().max(60).default("") }),
+  }),
   z.object({ id: z.string().uuid(), action: z.literal("save-trip"), trip: z.record(z.unknown()) }),
   z.object({ id: z.string().uuid(), action: z.literal("flights-search"), query: flightQuerySchema }),
   z.object({ id: z.string().uuid(), action: z.literal("flights-return"), query: flightQuerySchema, token: z.string().min(10).max(4000) }),
@@ -187,4 +193,31 @@ export function tripLine(t: VoiceTrip): string {
   const sameMonth = t.return && t.return.slice(0, 7) === t.depart.slice(0, 7);
   const dates = t.depart ? (t.return ? `${sameMonth ? Number(t.depart.slice(8, 10)) : d(t.depart)}–${d(t.return)}` : `${d(t.depart)}${t.oneWay ? " (one way)" : ""}`) : "";
   return [`${t.from?.city ?? "?"} → ${t.to?.city ?? "?"}`, dates, people, t.cabin, t.airline].filter(Boolean).join(" · ");
+}
+
+/* ---------- checking the message before "Message sent" (Customer tab) ---------- */
+
+/** One thing the customer still has to tell us; "speech" means the recording couldn't be heard. */
+export interface CustomerQuestion { key: "from" | "to" | "date" | "speech"; question: string; placeholder: string }
+
+/** What the Customer tab gets back from Request Tickets: nothing missing = sent. */
+export interface VoiceCheck { id: string; missing: CustomerQuestion[]; heard: string }
+
+/**
+ * The questions for the customer before the message counts as sent: where from, where to (a city, not
+ * just a country) and the travel date. Passengers, return date, class and airline are never asked
+ * (1 adult, one way, economy and any airline when not said).
+ */
+export function customerQuestions(t: VoiceTrip | null, today: string, heard: boolean): CustomerQuestion[] {
+  if (!heard) return [{ key: "speech", question: "We couldn't hear your message clearly. Please record it again.", placeholder: "" }];
+  const q: CustomerQuestion[] = [];
+  if (!t?.from) q.push({ key: "from", question: "Which city are you flying from?", placeholder: "e.g. Kochi" });
+  else if (!t.from.airport) q.push({ key: "from", question: `Which city in ${t.from.city} are you flying from?`, placeholder: "e.g. Kochi" });
+  if (!t?.to) q.push({ key: "to", question: "Where would you like to fly to?", placeholder: "e.g. Dubai" });
+  else if (!t.to.airport) q.push({ key: "to", question: `Which city in ${t.to.city} are you flying to?`, placeholder: "e.g. Bangalore" });
+  const confirm = t?.missing.map((m) => /^confirm the travel date \((.+?) is almost/.exec(m)?.[1]).find(Boolean);
+  if (!t?.depart) q.push({ key: "date", question: "What date do you want to travel?", placeholder: "e.g. 15 December" });
+  else if (t.depart < today) q.push({ key: "date", question: "That travel date has passed. What date do you want to travel?", placeholder: "e.g. 15 December" });
+  else if (confirm) q.push({ key: "date", question: `We understood ${confirm}. Is that right? Type your travel date.`, placeholder: "e.g. 15 December" });
+  return q;
 }
