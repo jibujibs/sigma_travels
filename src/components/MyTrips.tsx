@@ -1,5 +1,6 @@
 import type { TripSummary } from "../lib/api";
-import { addDays, fmtDate, inr, parseISO } from "../lib/format";
+import { addDays, fmtDate, parseISO } from "../lib/format";
+import { money } from "../../shared/currency";
 
 interface Props {
   trips: TripSummary[];
@@ -32,7 +33,7 @@ export function MyTrips({ trips, busyId, onOpen, onDelete, onClose }: Props) {
                     {fmtDate(start)} – {fmtDate(addDays(start, t.criteria.days - 1))} · {t.criteria.pax} adult{t.criteria.pax > 1 ? "s" : ""} · from {t.criteria.origin}
                   </span>
                 </div>
-                <div className="trip-total mono">{inr(t.total)}</div>
+                <div className="trip-total mono">{money(t.total, t.currency || "INR")}</div>
                 <div className="actions">
                   <button className="btn solid" disabled={busyId === t.id} onClick={() => onOpen(t.id)}>Open</button>
                   <button className="btn" disabled={busyId === t.id} onClick={() => onDelete(t.id)}>Delete</button>

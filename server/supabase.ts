@@ -187,10 +187,10 @@ export interface TripRow {
   destination?: unknown;
 }
 
-export async function saveTrip(userId: string, criteria: unknown, segments: unknown, total: number): Promise<{ id: string; created_at: string }> {
+export async function saveTrip(userId: string, criteria: unknown, segments: unknown, total: number, currency = "INR"): Promise<{ id: string; created_at: string }> {
   const rows = await rest<{ id: string; created_at: string }[]>("saving the trip", "itineraries?select=id,created_at", {
     method: "POST",
-    body: [{ user_id: userId, criteria, segments, total: Math.max(0, Math.round(total)), currency: "INR" }],
+    body: [{ user_id: userId, criteria, segments, total: Math.max(0, Math.round(total)), currency }],
     prefer: "return=representation",
   });
   return rows[0];

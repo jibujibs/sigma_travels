@@ -28,6 +28,9 @@ export function originFromText(text: string): { city: string; airport: string } 
   return null;
 }
 
+/** An amount under its neutral name ("fare"), or the older "_inr" name used by saved trips. */
+const amount = (o: Record<string, unknown>, key: string, fallback = 0) => num(o[key] ?? o[`${key}_inr`], fallback);
+
 /* The model's JSON is untrusted: coerce every field into the shape the UI expects. */
 
 const str = (v: unknown, d = ""): string => (typeof v === "string" ? v.trim() : v == null ? d : String(v));
@@ -57,7 +60,7 @@ export function normalizeRecommendations(raw: unknown): Recommendation[] {
       weather: str(d.weather),
       visa: str(d.visa),
       flight_time: str(d.flight_time),
-      est_total_inr: num(d.est_total_inr),
+      est_total_inr: amount(d, "est_total"),
     };
   });
 }
@@ -73,7 +76,7 @@ function flights(v: unknown): Flight[] {
       arrive_next_day: f.arrive_next_day === true,
       duration: str(f.duration),
       stops: str(f.stops, "Nonstop"),
-      fare_inr: num(f.fare_inr),
+      fare_inr: amount(f, "fare"),
     };
   });
 }
@@ -95,21 +98,26 @@ export function normalizeIntent(raw: unknown): Intent {
   return { destination, origin, needs: r.specific === true && any ? needs : null };
 }
 
-/** needs: what was asked for. When omitted (re-saving an existing plan) it is read from the plan itself. */
-export function normalizePlan(raw: unknown, days: number, needsIn?: Needs): TripPlan {
+/**
+ * needs: what was asked for. When omitted (re-saving an existing plan) it is read from the plan itself.
+ * currency: the prices' currency (the From airport's); when omitted it is read from the plan, and plans
+ * saved before currencies were added are in rupees.
+ */
+export function normalizePlan(raw: unknown, days: number, needsIn?: Needs, currencyIn?: string): TripPlan {
   const p = obj(raw);
+  const priceCurrency = (currencyIn || str(p.price_currency) || "INR").toUpperCase().replace(/[^A-Z]/g, "").slice(0, 3) || "INR";
   const needs = needsIn ?? needsOf(p as { needs?: Partial<Needs> });
   const d = obj(p.destination);
   const fl = obj(p.flights);
   const hotels: Hotel[] = arr(p.hotels).slice(0, 5).map((x) => {
     const h = obj(x);
-    return { name: str(h.name, "Hotel"), area: str(h.area), tier: str(h.tier), rate_inr: num(h.rate_inr), why: str(h.why) };
+    return { name: str(h.name, "Hotel"), area: str(h.area), tier: str(h.tier), rate_inr: amount(h, "rate"), why: str(h.why) };
   });
   const cars: Car[] = arr(p.cars).slice(0, 4).map((x) => {
     const c = obj(x);
     return {
       name: str(c.name, "Car"), company: str(c.company), seats: Math.round(num(c.seats, 4)),
-      daily_inr: num(c.daily_inr), mode: str(c.mode, "Self-drive"), includes: str(c.includes),
+      daily_inr: amount(c, "daily"), mode: str(c.mode, "Self-drive"), includes: str(c.includes),
     };
   });
   const planDays: PlanDay[] = arr(p.days).slice(0, days).map((x) => {
@@ -133,8 +141,10 @@ export function normalizePlan(raw: unknown, days: number, needsIn?: Needs): Trip
     cars: needs.car ? cars : [],
     car_days: needs.car ? Math.min(days, Math.max(0, Math.round(Number(p.car_days) || 0))) || (needs.itinerary ? 0 : days) : 0,
     car_note: needs.car ? str(p.car_note) : "",
-    food_per_person_day_inr: needs.itinerary ? num(p.food_per_person_day_inr, 1500) : 0,
-    activities_per_person_inr: needs.itinerary ? num(p.activities_per_person_inr) : 0,
+    // When Gemini leaves food out: a modest day's food (₹1,500, or about 20 in other currencies).
+    food_per_person_day_inr: needs.itinerary ? amount(p, "food_per_person_day", priceCurrency === "INR" ? 1500 : 20) : 0,
+    activities_per_person_inr: needs.itinerary ? amount(p, "activities_per_person") : 0,
+    price_currency: priceCurrency,
     days: needs.itinerary ? planDays : [],
     tips: arr(p.tips).slice(0, 6).map((t) => str(t)).filter(Boolean),
   };

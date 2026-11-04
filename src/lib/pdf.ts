@@ -1,5 +1,6 @@
 import type { PDFFont, PDFPage, RGB } from "pdf-lib";
-import { addDays, fmtDate, fmtLong, inrPlain, originCity, parseISO } from "./format";
+import { addDays, fmtDate, fmtLong, originCity, parseISO, planCur } from "./format";
+import { moneyPdf } from "../../shared/currency";
 import { buildDays, FOOD_LABEL, homeCode, needsList, picks, planNeeds, price, tripLength, type PlanState } from "./trip";
 
 export { safe } from "../../shared/pdfText";
@@ -11,6 +12,7 @@ export async function buildTripPdf(state: PlanState): Promise<{ bytes: Uint8Arra
   const { plan, brief } = state;
   const days = buildDays(state);
   const q = price(state);
+  const inrPlain = (n: number) => moneyPdf(n || 0, planCur(state.plan));
   const { out, ret, hotel, car } = picks(state);
   const n = planNeeds(state);
   const len = tripLength(state);

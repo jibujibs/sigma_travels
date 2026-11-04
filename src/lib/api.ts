@@ -44,6 +44,8 @@ export interface TripSummary {
   id: string;
   created_at: string;
   total: number;
+  /** Currency of total; older trips were saved in rupees. */
+  currency?: string;
   criteria: TripBrief;
   destination?: { city?: string; country?: string; airport?: string } | null;
 }

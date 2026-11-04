@@ -1,15 +1,17 @@
 import type { Recommendation } from "../../shared/types";
-import { inr } from "../lib/format";
+import { money } from "../../shared/currency";
 
 interface Props {
   recs: Recommendation[];
   planned?: string;
   pax: number;
+  /** Currency of the estimated totals (the From airport's). */
+  currency: string;
   busy: boolean;
   onPlan: (r: Recommendation) => void;
 }
 
-export function Recommendations({ recs, planned, pax, busy, onPlan }: Props) {
+export function Recommendations({ recs, planned, pax, currency, busy, onPlan }: Props) {
   return (
     <section aria-labelledby="h-recs">
       <div className="sec-head"><h2 id="h-recs">Recommended for you</h2><p>{planned ? `Showing the ${planned} plan below` : "Pick one to build the full plan"}</p></div>
@@ -28,7 +30,7 @@ export function Recommendations({ recs, planned, pax, busy, onPlan }: Props) {
               {r.flight_time && <div><span>Flight</span><span>{r.flight_time}</span></div>}
               {r.weather && <div><span>Weather</span><span>{r.weather}</span></div>}
               {r.visa && <div><span>Visa</span><span>{r.visa}</span></div>}
-              {r.est_total_inr > 0 && <div><span>Est. total</span><span className="est">{inr(r.est_total_inr)} for {pax}</span></div>}
+              {r.est_total_inr > 0 && <div><span>Est. total</span><span className="est">{money(r.est_total_inr, currency)} for {pax}</span></div>}
             </div>
             <button className={planned === r.city ? "btn" : "btn solid"} disabled={busy} onClick={() => onPlan(r)}>{planned === r.city ? "Rebuild this plan" : "Plan this trip"}</button>
           </article>

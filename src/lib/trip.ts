@@ -1,5 +1,6 @@
 import { needsOf, type Needs, type Stop, type TripBrief, type TripPlan } from "../../shared/types";
-import { addDays, inr, originCode, parseISO } from "./format";
+import { addDays, originCode, parseISO, planCur } from "./format";
+import { money } from "../../shared/currency";
 
 export type FoodStyle = "street" | "mid" | "fine";
 export interface Selection { out: number; ret: number; hotel: number; car: number }
@@ -84,18 +85,19 @@ export function buildDays(s: PlanState): BuiltDay[] {
 export interface QuoteLine { label: string; value: number; why: string }
 export function price(s: PlanState) {
   const { plan, brief } = s;
+  const m = (n: number) => money(n, planCur(plan));
   const { out, ret, hotel, car } = picks(s);
   const n = planNeeds(s), len = tripLength(s);
   const pax = brief.pax, rooms = Math.ceil(pax / 2), nights = Math.max(1, len - 1);
   const lines: QuoteLine[] = [];
-  if (n.flights && out && ret) lines.push({ label: "Flights", value: (out.fare_inr + ret.fare_inr) * pax, why: `${inr(out.fare_inr)} + ${inr(ret.fare_inr)} × ${pax} adult${pax > 1 ? "s" : ""}` });
+  if (n.flights && out && ret) lines.push({ label: "Flights", value: (out.fare_inr + ret.fare_inr) * pax, why: `${m(out.fare_inr)} + ${m(ret.fare_inr)} × ${pax} adult${pax > 1 ? "s" : ""}` });
   const tax = plan.hotel_tax_pct / 100;
-  if (n.hotel && hotel) lines.push({ label: "Hotel", value: hotel.rate_inr * rooms * nights * (1 + tax), why: `${inr(hotel.rate_inr)} × ${rooms} room${rooms > 1 ? "s" : ""} × ${nights} night${nights > 1 ? "s" : ""}${tax ? ` + ${plan.hotel_tax_pct}% tax` : ""}` });
-  if (n.car && s.carOn && car && plan.car_days > 0) lines.push({ label: "Rental car", value: car.daily_inr * plan.car_days, why: `${inr(car.daily_inr)} × ${plan.car_days} day${plan.car_days > 1 ? "s" : ""} · ${car.mode}` });
+  if (n.hotel && hotel) lines.push({ label: "Hotel", value: hotel.rate_inr * rooms * nights * (1 + tax), why: `${m(hotel.rate_inr)} × ${rooms} room${rooms > 1 ? "s" : ""} × ${nights} night${nights > 1 ? "s" : ""}${tax ? ` + ${plan.hotel_tax_pct}% tax` : ""}` });
+  if (n.car && s.carOn && car && plan.car_days > 0) lines.push({ label: "Rental car", value: car.daily_inr * plan.car_days, why: `${m(car.daily_inr)} × ${plan.car_days} day${plan.car_days > 1 ? "s" : ""} · ${car.mode}` });
   if (n.itinerary) {
     const food = plan.food_per_person_day_inr * FOOD_X[s.food];
-    lines.push({ label: "Food", value: food * len * pax, why: `${inr(food)} per person per day` });
-    if (plan.activities_per_person_inr) lines.push({ label: "Sights and activities", value: plan.activities_per_person_inr * pax, why: `${inr(plan.activities_per_person_inr)} per person` });
+    lines.push({ label: "Food", value: food * len * pax, why: `${m(food)} per person per day` });
+    if (plan.activities_per_person_inr) lines.push({ label: "Sights and activities", value: plan.activities_per_person_inr * pax, why: `${m(plan.activities_per_person_inr)} per person` });
   }
   const total = lines.reduce((a, l) => a + l.value, 0);
   return { lines, total, perPerson: total / pax, rooms, nights, car, carTooSmall: n.car && s.carOn && !!car && pax > car.seats };
