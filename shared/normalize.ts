@@ -62,6 +62,8 @@ export const hhmm = (v: unknown): string => {
   return m ? `${m[1].padStart(2, "0")}:${m[2]}` : "";
 };
 const code = (v: unknown): string => str(v).replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase() || "???";
+/** A city's airport code: our airport list first (Gemini sometimes writes COC for Kochi or DUB for Dubai), else Gemini's. */
+const cityCode = (city: string, v: unknown): string => airportFor(city) || code(v);
 
 export function normalizeRecommendations(raw: unknown): Recommendation[] {
   const list = Array.isArray(raw) ? raw : arr(obj(raw).destinations);
@@ -70,7 +72,7 @@ export function normalizeRecommendations(raw: unknown): Recommendation[] {
     return {
       city: str(d.city, "Destination"),
       country: str(d.country),
-      airport: code(d.airport),
+      airport: cityCode(str(d.city), d.airport),
       tagline: str(d.tagline),
       why: str(d.why),
       highlights: arr(d.highlights).slice(0, 4).map((h) => str(h)).filter(Boolean),
@@ -103,7 +105,7 @@ export function normalizeIntent(raw: unknown): Intent {
   const r = obj(raw);
   const d = obj(r.destination);
   const city = str(d.city);
-  const destination = city ? { city, country: str(d.country), airport: str(d.airport).replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase() } : null;
+  const destination = city ? { city, country: str(d.country), airport: airportFor(city) || str(d.airport).replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase() } : null;
   const o = obj(r.origin);
   const oCity = str(o.city);
   const oCode = str(o.airport).replace(/[^A-Za-z]/g, "").slice(0, 3).toUpperCase();
@@ -151,7 +153,7 @@ export function normalizePlan(raw: unknown, days: number, needsIn?: Needs, curre
   });
   const plan: TripPlan = {
     needs,
-    destination: { city: str(d.city, "Destination"), country: str(d.country), airport: code(d.airport), currency: str(d.currency), summary: str(d.summary) },
+    destination: { city: str(d.city, "Destination"), country: str(d.country), airport: cityCode(str(d.city), d.airport), currency: str(d.currency), summary: str(d.summary) },
     flights: needs.flights ? { outbound: flights(fl.outbound), return: flights(fl.return) } : { outbound: [], return: [] },
     hotels: needs.hotel ? hotels : [],
     hotel_tax_pct: needs.hotel ? Math.min(40, Math.max(0, Number(p.hotel_tax_pct) || 0)) : 0,

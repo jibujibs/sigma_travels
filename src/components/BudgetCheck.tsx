@@ -6,6 +6,10 @@ import { planCur } from "../lib/format";
 import type { PlanState } from "../lib/trip";
 import { api } from "../lib/api";
 
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** "2026-12-05" → "5 Dec 2026" */
+const longDate = (iso: string) => `${Number(iso.slice(8, 10))} ${MON[Number(iso.slice(5, 7)) - 1]} ${iso.slice(0, 4)}`;
+
 interface Props {
   state: PlanState;
   cap: BudgetCap;
@@ -53,7 +57,7 @@ export function BudgetCheck({ state, cap, email, onAlert }: Props) {
   }
 
   if (done) {
-    return <div className="alert ok budget-box"><div><b>🔔 Price alert on.</b> We'll email {done.email} if {done.origin.replace(/\s*\(.*\)/, "")} → {done.destination.replace(/\s*\(.*\)/, "")} drops below {budget} per person. We check once a day until {done.depart}.</div></div>;
+    return <div className="alert ok budget-box"><div><b>🔔 Price alert on.</b> We'll email {done.email} if {done.origin.replace(/\s*\(.*\)/, "")} → {done.destination.replace(/\s*\(.*\)/, "")} drops below {budget} per person. We check once a day until {longDate(done.depart)}.</div></div>;
   }
   if (no) return <div className="alert warn budget-box"><div><b>No flights within {budget} per person.</b> Cheapest now: {money(cheapest, cur)}.</div></div>;
   return (
