@@ -5,6 +5,8 @@ import { money } from "../../shared/currency";
 import { buildDays, homeCode, needsList, picks, planNeeds, price, tripLength, type FoodStyle, type PlanState, type Selection } from "../lib/trip";
 import { buildTripPdf } from "../lib/pdf";
 import { api } from "../lib/api";
+import { BudgetCheck } from "./BudgetCheck";
+import type { BudgetCap, PriceAlert } from "../../shared/priceAlert";
 
 interface Props {
   state: PlanState;
@@ -17,6 +19,11 @@ interface Props {
   /** Present when saving is available (Supabase configured). */
   onSave?: () => Promise<void>;
   saved?: boolean;
+  /** A budget typed in the request ("under $1000"): checked against the cheapest flights. */
+  cap?: BudgetCap | null;
+  /** The signed-in email, filled in for a price alert. */
+  email?: string;
+  onAlert?: (a: PriceAlert) => void;
 }
 
 function FlightCard({ f, cur }: { f: Flight; cur: string }) {
@@ -30,7 +37,7 @@ function FlightCard({ f, cur }: { f: Flight; cur: string }) {
   );
 }
 
-export function PlanView({ state, example, model, onChange, onPdf, onNewTrip, toast, onSave, saved }: Props) {
+export function PlanView({ state, example, model, onChange, onPdf, onNewTrip, toast, onSave, saved, cap, email = "", onAlert }: Props) {
   const [day, setDay] = useState(0);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [mailOpen, setMailOpen] = useState(false);
@@ -165,6 +172,7 @@ export function PlanView({ state, example, model, onChange, onPdf, onNewTrip, to
 
           {n.flights && <section aria-labelledby="h-flights">
             <div className="sec-head"><h2 id="h-flights">Flights</h2><p>Per person, one way</p></div>
+            {cap && <BudgetCheck state={state} cap={cap} email={email} onAlert={(a) => onAlert?.(a)} />}
             <div className="sub">Day 1 · {plan.flights.outbound[0]?.route || "Outbound"}</div>
             <div className="opts">{plan.flights.outbound.map((f, i) => <button key={i} className="opt" aria-pressed={sel.out === i} onClick={() => pick("out", i)}><FlightCard f={f} cur={planCur(plan)} /></button>)}</div>
             <div className="sub">Day {len} · {fmtDate(end)} · {plan.flights.return[0]?.route || "Return"}</div>

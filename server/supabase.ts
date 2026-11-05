@@ -371,3 +371,53 @@ export async function checkTables(): Promise<Record<string, string>> {
   }
   return out;
 }
+
+/* ---------- budget price alerts (supabase/price_alerts.sql) ---------- */
+
+export interface AlertRow {
+  id: string; created_at: string; user_id: string | null; email: string;
+  origin: string; destination: string; destination_city: string; destination_country: string; destination_code: string;
+  depart: string; days: number; adults: number; budget: number; currency: string;
+  status: "active" | "notified" | "expired" | "stopped";
+  start_price: number | null; last_price: number | null; last_checked: string | null; notified_at: string | null;
+  stop_token: string; source: string;
+}
+
+const ALERTS_SQL = "Price alerts need their table: run supabase/price_alerts.sql in the Supabase SQL Editor.";
+/** PostgREST says the price_alerts table isn't there yet. */
+const isMissingTable = (e: unknown) => e instanceof Error && /price_alerts|PGRST205|does not exist|schema cache/i.test(e.message);
+async function alertsRest<T>(action: string, path: string, init?: { method?: string; body?: unknown; prefer?: string }): Promise<T> {
+  try {
+    return await rest<T>(action, path, init);
+  } catch (e) {
+    if (isMissingTable(e)) throw new HttpError(503, ALERTS_SQL);
+    throw e;
+  }
+}
+
+export async function insertAlert(row: Omit<AlertRow, "id" | "created_at" | "status" | "last_price" | "last_checked" | "notified_at" | "stop_token">): Promise<AlertRow> {
+  const rows = await alertsRest<AlertRow[]>("saving the price alert", "price_alerts?select=*", { method: "POST", body: [row], prefer: "return=representation" });
+  return rows[0];
+}
+export function listAlerts(userId: string, limit = 30): Promise<AlertRow[]> {
+  return alertsRest<AlertRow[]>("loading price alerts", `price_alerts?select=*&user_id=eq.${enc(userId)}&order=created_at.desc&limit=${limit}`);
+}
+export function activeAlerts(limit = 100): Promise<AlertRow[]> {
+  return alertsRest<AlertRow[]>("loading active price alerts", `price_alerts?select=*&status=eq.active&order=last_checked.asc.nullsfirst&limit=${limit}`);
+}
+export async function countActiveAlerts(userId?: string): Promise<number> {
+  const rows = await alertsRest<{ id: string }[]>("counting price alerts", `price_alerts?select=id&status=eq.active${userId ? `&user_id=eq.${enc(userId)}` : ""}&limit=1000`);
+  return rows.length;
+}
+export async function alertById(id: string): Promise<AlertRow | null> {
+  const rows = await alertsRest<AlertRow[]>("loading the price alert", `price_alerts?select=*&id=eq.${enc(id)}&limit=1`);
+  return rows[0] ?? null;
+}
+export async function updateAlert(id: string, patch: Partial<AlertRow>): Promise<AlertRow | null> {
+  const rows = await alertsRest<AlertRow[]>("updating the price alert", `price_alerts?id=eq.${enc(id)}&select=*`, { method: "PATCH", body: patch, prefer: "return=representation" });
+  return rows[0] ?? null;
+}
+export async function stopAlertByToken(token: string): Promise<AlertRow | null> {
+  const rows = await alertsRest<AlertRow[]>("stopping the price alert", `price_alerts?stop_token=eq.${enc(token)}&select=*`, { method: "PATCH", body: { status: "stopped" }, prefer: "return=representation" });
+  return rows[0] ?? null;
+}

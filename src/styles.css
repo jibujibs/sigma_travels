@@ -228,6 +228,13 @@ h2{font-family:var(--display);font-size:24px;margin:0;letter-spacing:-.01em;text
 /* ---------- header actions, My trips ---------- */
 .top-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .mytrips{background:var(--surface);border:1px solid var(--line);border-radius:18px;padding:18px}
+.budget-box{margin:0 0 14px}
+.price-alert{margin:0 0 16px;border:1.5px solid var(--teal);background:var(--teal-soft);border-radius:16px;padding:18px 20px;display:grid;gap:10px}
+.price-alert h3{margin:0;font-family:var(--display);font-size:20px;line-height:1.25}
+.price-alert .hint{margin:0}
+.price-alert .pa-email{display:grid;gap:6px;max-width:420px}
+.price-alert .pa-actions{display:flex;gap:10px;flex-wrap:wrap}
+.alert-row .code{font-size:20px}
 .trip-list{display:grid;gap:10px}
 .trip-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:14px;align-items:center;border:1px solid var(--line);border-radius:14px;padding:12px 14px}
 .trip-row .code{font-family:var(--display);font-weight:800;font-size:26px;min-width:64px}
