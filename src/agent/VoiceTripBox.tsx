@@ -82,7 +82,8 @@ export function VoiceTripBox({ v, onChange, onOpenPlanner }: Props) {
           </div>
           <dl className="vt-grid">
             <div><dt>Depart</dt><dd>{t.depart ? longDay(t.depart) : <em className="vt-ask">not said</em>}</dd></div>
-            <div><dt>Return</dt><dd>{t.return ? longDay(t.return) : t.oneWay ? "One way" : <em className="vt-ask">not said</em>}</dd></div>
+            {/* No return date said = one way (the search is one way too), the same as the customer sees. */}
+            <div><dt>Return</dt><dd>{t.return ? longDay(t.return) : "One way"}</dd></div>
             <div><dt>Travellers</dt><dd>{t.adults + t.children + t.infants === 0 ? <em className="vt-ask">not said</em>
               : [t.adults && `${t.adults} adult${t.adults > 1 ? "s" : ""}`, t.children && `${t.children} child${t.children > 1 ? "ren" : ""}`, t.infants && `${t.infants} infant${t.infants > 1 ? "s" : ""}`].filter(Boolean).join(", ")}</dd></div>
             <div><dt>Class</dt><dd>{t.cabin || "Any"}</dd></div>
