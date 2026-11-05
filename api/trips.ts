@@ -4,6 +4,7 @@ import { alertById, countActiveAlerts, deleteTrip, ensureAuthUser, getTrip, inse
 import { checkAlert, runDueAlerts, toAlertView } from "../server/priceAlerts.js";
 import { alertCreateSchema, alertIdSchema, ALERTS_PER_USER, ALERTS_TOTAL } from "../shared/priceAlert.js";
 import { originOf } from "../server/payments.js";
+import { airportFor } from "../shared/airports.js";
 import { z } from "zod";
 import { normalizePlan } from "../shared/normalize.js";
 import { saveTripSchema, tripEmailSchema } from "../shared/schemas.js";
@@ -92,7 +93,8 @@ export const PATCH = handle(async (request) => {
     const userId = (await ensureAuthUser(user)).id;
     if ((await countActiveAlerts(userId)) >= ALERTS_PER_USER) throw new HttpError(409, `You already have ${ALERTS_PER_USER} active price alerts. Stop one in My price alerts first.`);
     if ((await countActiveAlerts()) >= ALERTS_TOTAL) throw new HttpError(409, "Price alerts are full right now. Sunny will contact you about this trip.");
-    const d = body.destination;
+    // The airport list's code beats a code Gemini got wrong (Kochi is COK, not COC).
+    const d = { ...body.destination, airport: airportFor(body.destination.city) || body.destination.airport };
     const row = await insertAlert({
       user_id: userId, email: body.email, origin: body.origin,
       destination: d.airport ? `${d.city} (${d.airport.toUpperCase()})` : d.city,
