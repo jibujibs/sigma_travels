@@ -76,6 +76,7 @@ export const api = {
     send: (m: { name: string; phone: string; email: string; audio: string; mime: string; seconds: number; replaces?: string }) =>
       post<VoiceCheck>("/api/voice", m),
     answer: (id: string, answers: { from: string; to: string; date: string }) => request<VoiceCheck>("PATCH", "/api/voice", { id, action: "answer", answers }),
+    confirm: (id: string) => request<VoiceCheck>("PATCH", "/api/voice", { id, action: "confirm" }),
     list: () => request<{ requests: VoiceRequest[] }>("GET", "/api/voice"),
     get: (id: string) => request<{ request: VoiceRequest }>("GET", `/api/voice?id=${encodeURIComponent(id)}`),
     setStatus: (id: string, status: VoiceStatus) => request<{ request: VoiceRequest }>("PATCH", "/api/voice", { id, status }),

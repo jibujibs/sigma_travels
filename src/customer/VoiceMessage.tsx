@@ -1,11 +1,31 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { DEMO_CUSTOMERS, DEMO_SAMPLES, sampleUrl, type DemoCustomer, type DemoSample } from "./demo";
-import { VOICE_MAX_SECONDS, type VoiceCheck } from "../../shared/voice";
+import { placeLabel, VOICE_MAX_SECONDS, type CustomerQuestion, type VoiceCheck, type VoiceTrip } from "../../shared/voice";
+import { AIRPORTS } from "../lib/airports";
 import { api } from "../lib/api";
 
-type Phase = "idle" | "recording" | "recorded" | "sending" | "ask" | "sent";
+type Phase = "idle" | "recording" | "recorded" | "sending" | "ask" | "confirm" | "confirming" | "sent";
 type Answers = { from: string; to: string; date: string };
 const NO_ANSWERS: Answers = { from: "", to: "", date: "" };
+
+const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** "2026-11-25" → "Wed 25 Nov 2026" */
+function dayLabel(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  return Number.isNaN(d.getTime()) ? iso : `${DOW[d.getUTCDay()]} ${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+/** "2 adults, 1 child"; nobody said → "1 adult" (what the search uses). */
+function people(t: VoiceTrip): string {
+  const a = Math.max(1, t.adults), c = t.children, i = t.infants;
+  return [`${a} adult${a > 1 ? "s" : ""}`, c && `${c} child${c > 1 ? "ren" : ""}`, i && `${i} infant${i > 1 ? "s" : ""}`].filter(Boolean).join(", ");
+}
+/** "Change details": the three things the customer can correct, filled in with what was understood. */
+const EDIT_QUESTIONS: CustomerQuestion[] = [
+  { key: "from", question: "Flying from", placeholder: "e.g. Kochi" },
+  { key: "to", question: "Flying to", placeholder: "e.g. Dubai" },
+  { key: "date", question: "Travel date", placeholder: "e.g. 15 December" },
+];
 
 const clock = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
@@ -47,6 +67,8 @@ export function VoiceMessage() {
   const [answers, setAnswers] = useState<Answers>(NO_ANSWERS);
   /** An incomplete message the next recording replaces (Record again from the questions). */
   const [replaces, setReplaces] = useState<string>();
+  /** The customer pressed "Change details" on the confirm screen. */
+  const [editing, setEditing] = useState(false);
   const recRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunks = useRef<Blob[]>([]);
@@ -137,9 +159,11 @@ export function VoiceMessage() {
     }
   }
 
-  /** Complete: sent. Otherwise ask for what's missing. */
+  /** Complete: show what was understood to confirm (or sent, when there's nothing to show). Otherwise ask for what's missing. */
   function afterCheck(res: VoiceCheck) {
     setError(undefined);
+    setEditing(false);
+    if (!res.missing.length && res.confirm) { setCheck(res); setReplaces(undefined); setPhase("confirm"); return; }
     if (!res.missing.length) { setCheck(null); setReplaces(undefined); setPhase("sent"); return; }
     setCheck(res);
     setAnswers((a) => ({ ...NO_ANSWERS, ...Object.fromEntries(res.missing.filter((q) => q.key !== "speech").map((q) => [q.key, a[q.key as keyof Answers] ?? ""])) }));
@@ -155,6 +179,26 @@ export function VoiceMessage() {
     setPhase("sending");
     try { afterCheck(await api.voice.answer(check.id, answers)); }
     catch (err) { setError((err as Error).message); setPhase("ask"); }
+  }
+
+  /** "Yes, send to Sunny": now the flight search and Sunny's email start. */
+  async function confirmTrip() {
+    if (!check) return;
+    setError(undefined);
+    setPhase("confirming");
+    try { await api.voice.confirm(check.id); setCheck(null); setPhase("sent"); }
+    catch (err) { setError((err as Error).message); setPhase("confirm"); }
+  }
+
+  /** "Change details": the same answer form, with From, To and the date filled in as understood. */
+  function changeDetails() {
+    const t = check?.confirm;
+    if (!check || !t) return;
+    setAnswers({ from: placeLabel(t.from), to: placeLabel(t.to), date: t.depart ? dayLabel(t.depart) : "" });
+    setCheck({ ...check, missing: EDIT_QUESTIONS });
+    setEditing(true);
+    setError(undefined);
+    setPhase("ask");
   }
 
   /** From the questions: record a new message instead (the incomplete one is closed when the new one is sent). */
@@ -178,6 +222,39 @@ export function VoiceMessage() {
     );
   }
 
+  if (check?.confirm && (phase === "confirm" || phase === "confirming")) {
+    const t = check.confirm;
+    const busyConfirm = phase === "confirming";
+    const rows: [string, string][] = [
+      ["From", placeLabel(t.from)],
+      ["To", placeLabel(t.to)],
+      ["Departure", dayLabel(t.depart)],
+      ["Return", t.return ? dayLabel(t.return) : "One way"],
+      ["Travellers", people(t)],
+      ["Class", t.cabin || "Economy"],
+      ...(t.airline ? [["Airline", t.airline] as [string, string]] : []),
+      ...(t.budget ? [["Budget", t.budget] as [string, string]] : []),
+    ];
+    return (
+      <section className="desk-hero voice-card" aria-labelledby="vm-h">
+        <div>
+          <p className="eyebrow">Almost done</p>
+          <h2 id="vm-h">Is this right?</h2>
+          <p className="hint">Please check your trip before we send it to Sunny.</p>
+        </div>
+        <dl className="vm-confirm">
+          {rows.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}
+        </dl>
+        {check.heard && <blockquote className="vm-heard"><span className="lbl">Your message</span>{check.heard}</blockquote>}
+        {error && <p className="err-text" role="alert">{error}</p>}
+        <div className="vm-send">
+          <button className="btn solid big send-btn" type="button" onClick={() => void confirmTrip()} disabled={busyConfirm}>{busyConfirm ? "Sending…" : "✓ Yes, send to Sunny"}</button>
+          <button className="btn" type="button" onClick={changeDetails} disabled={busyConfirm}>✎ Change details</button>
+        </div>
+      </section>
+    );
+  }
+
   if (check && (phase === "ask" || phase === "sending")) {
     const needsVoice = check.missing.some((q) => q.key === "speech");
     const asking = phase === "sending";
@@ -185,8 +262,8 @@ export function VoiceMessage() {
       <section className="desk-hero voice-card" aria-labelledby="vm-h">
         <div>
           <p className="eyebrow">Almost done</p>
-          <h2 id="vm-h">We need a little more</h2>
-          <p className="hint">So Sunny can find real flights for you, please tell us {needsVoice ? "your message again" : check.missing.length > 1 ? "these details" : "this detail"}.</p>
+          <h2 id="vm-h">{editing ? "Change your trip" : "We need a little more"}</h2>
+          <p className="hint">{editing ? "Correct anything that's wrong, then check it again." : `So Sunny can find real flights for you, please tell us ${needsVoice ? "your message again" : check.missing.length > 1 ? "these details" : "this detail"}.`}</p>
         </div>
         {check.heard && !needsVoice && <blockquote className="vm-heard"><span className="lbl">Your message</span>{check.heard}</blockquote>}
         <form className="vm-ask" onSubmit={sendAnswers} noValidate>
@@ -195,11 +272,14 @@ export function VoiceMessage() {
             : <div key={q.key} className="field">
                 <label className="vm-q" htmlFor={`vm-a-${q.key}`}>{q.question}</label>
                 <input id={`vm-a-${q.key}`} placeholder={q.placeholder} maxLength={q.key === "date" ? 60 : 80} value={answers[q.key as keyof Answers]}
+                  list={q.key === "date" ? undefined : "vm-airports"} autoComplete="off"
                   onChange={(e) => { setAnswers({ ...answers, [q.key]: e.target.value }); setError(undefined); }} disabled={asking} />
               </div>)}
+          {/* Airport suggestions while typing ("san fr…" → San Francisco (SFO)); any other city can still be typed. */}
+          <datalist id="vm-airports">{AIRPORTS.map((a) => <option key={a} value={a} />)}</datalist>
           {error && <p className="err-text" role="alert">{error}</p>}
           <div className="vm-send">
-            {!needsVoice && <button className="btn solid big send-btn" type="submit" disabled={asking}>{asking ? "Checking…" : "Send to Sunny"}</button>}
+            {!needsVoice && <button className="btn solid big send-btn" type="submit" disabled={asking}>{asking ? "Checking…" : editing ? "Check again" : "Send to Sunny"}</button>}
             <button className={`btn${needsVoice ? " solid big" : ""}`} type="button" onClick={recordAgain} disabled={asking}>🎤 Record again</button>
             <span className="hint" role="status">{asking ? "Checking your answer…" : ""}</span>
           </div>

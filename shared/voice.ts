@@ -161,6 +161,7 @@ export const voicePatchSchema = z.union([
   z.object({ id: z.string().uuid(), status: z.enum(["new", "contacted", "ticketed", "closed"]) }),
   z.object({ id: z.string().uuid(), action: z.literal("read-trip") }),
   z.object({ id: z.string().uuid(), action: z.literal("retry") }),
+  z.object({ id: z.string().uuid(), action: z.literal("confirm") }),
   z.object({
     id: z.string().uuid(), action: z.literal("answer"),
     answers: z.object({ from: z.string().trim().max(80).default(""), to: z.string().trim().max(80).default(""), date: z.string().trim().max(60).default("") }),
@@ -201,7 +202,13 @@ export function tripLine(t: VoiceTrip): string {
 export interface CustomerQuestion { key: "from" | "to" | "date" | "speech"; question: string; placeholder: string }
 
 /** What the Customer tab gets back from Request Tickets: nothing missing = sent. */
-export interface VoiceCheck { id: string; missing: CustomerQuestion[]; heard: string }
+export interface VoiceCheck {
+  id: string;
+  missing: CustomerQuestion[];
+  heard: string;
+  /** Complete: the trip as understood, for the customer to confirm ("Yes, send") before search and email run. */
+  confirm?: VoiceTrip;
+}
 
 /**
  * The questions for the customer before the message counts as sent: where from, where to (a city, not

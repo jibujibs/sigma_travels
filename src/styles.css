@@ -640,6 +640,11 @@ table.tickets td,table.tickets th{padding:6px}
 .vm-send .hint{font-size:14px}
 .vm-heard{margin:0;padding:12px 16px;border-left:3px solid var(--teal);background:var(--sunk);border-radius:8px;display:grid;gap:4px;font-size:15px;line-height:1.5;white-space:pre-line}
 .vm-ask{display:grid;gap:16px}
+.vm-confirm{margin:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.vm-confirm div{border:1px solid var(--line);border-radius:12px;padding:10px 14px;background:var(--sunk)}
+.vm-confirm dt{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.vm-confirm dd{margin:2px 0 0;font-weight:600;font-size:16px}
+@media (max-width:640px){.vm-confirm{grid-template-columns:1fr 1fr}.vm-confirm dd{font-size:15px}}
 .vm-ask .field{display:grid;gap:6px}
 .vm-q{font-weight:600;font-size:16px;margin:0;color:var(--ink)}
 .cust-grid .mb-hero h1{font-size:clamp(26px,2.6vw,32px)}
