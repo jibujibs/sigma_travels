@@ -810,3 +810,21 @@ table.tickets td,table.tickets th{padding:6px}
 .trip-mail .fine{margin:0}
 .trip-mail input,.trip-mail textarea{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px;color:var(--ink);font:inherit}
 .trip-mail-sent{color:var(--ok);overflow-wrap:anywhere}
+
+/* Header "Corporates" menu (Customer + AI Trip Planner) */
+.corp{position:relative}
+.corp-btn{display:inline-flex;align-items:center;gap:6px}
+.corp-caret{font-size:12px}
+.corp-menu{position:absolute;top:calc(100% + 8px);right:0;z-index:40;width:min(320px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:6px;box-shadow:0 12px 32px color-mix(in srgb,var(--ink) 18%,transparent)}
+.corp-item{display:flex;gap:12px;align-items:flex-start;width:100%;text-align:left;background:none;border:0;border-radius:10px;padding:11px 12px;cursor:pointer;color:var(--ink);font:inherit}
+.corp-item+.corp-item{border-top:1px solid var(--line);border-radius:0 0 10px 10px}
+.corp-item:hover,.corp-item:focus-visible{background:var(--teal-soft)}
+.corp-item b{display:block;font-size:15px}
+.corp-item small{display:block;color:var(--muted);font-size:13px;margin-top:2px}
+.corp-ico{font-size:20px;line-height:1.2}
+.corp-soon{padding:12px}
+.corp-soon p{margin:8px 0;color:var(--muted)}
+.corp-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.corp-actions .btn{text-decoration:none;display:inline-flex;align-items:center}
+.corp-back{margin-top:10px;background:none;border:0;color:var(--teal);font-weight:600;cursor:pointer;padding:4px 0}
+.corp-menu.corp-left{right:auto;left:0}

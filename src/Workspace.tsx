@@ -7,6 +7,7 @@ import { VoiceInbox } from "./agent/VoiceInbox";
 import { setPlannerPrefill } from "./lib/plannerPrefill";
 import { AccountMenu } from "./components/AccountMenu";
 import { Brand } from "./components/Brand";
+import { Corporates } from "./components/Corporates";
 import { ContactFooter, TalkToSunny } from "./components/ContactFooter";
 import { HomeAirport } from "./components/HomeAirport";
 import type { Profile } from "./lib/api";
@@ -78,6 +79,7 @@ export function Workspace({ user, onSaveHomeAirport, onSignOut }: Props) {
         <Brand section={SECTIONS[view]} />
         {nav}
         <div className="top-actions">
+          {view === "customer" && <Corporates />}
           <AccountMenu user={user} onChangeAirport={() => setEditAirport(true)} onSignOut={onSignOut} />
         </div>
       </div>
