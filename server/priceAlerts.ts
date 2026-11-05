@@ -43,30 +43,93 @@ export async function cheapestNow(a: AlertRow): Promise<number | null> {
   return cheapestPerPerson(normalizePlan(data, a.days, FLIGHTS_ONLY, a.currency));
 }
 
-/** The email the traveller gets (and the team, on CC) when the price is within the budget. */
-export function alertEmail(a: AlertRow, price: number, stopUrl: string, test: boolean) {
-  const route = `${a.origin} → ${a.destination}`;
-  const when = `${nice(a.depart)} – ${nice(addDays(a.depart, Math.max(0, a.days - 1)))}`;
+/**
+ * The email the traveller gets (and the team, on CC). Shows the price now against the budget (under / over)
+ * and against the price when the alert was made (down / up). test: a preview sent from "Send test email".
+ */
+export function alertEmail(a: AlertRow, price: number, stopUrl: string, test: boolean, logo = "") {
+  const cur = a.currency, budget = Number(a.budget), start = a.start_price == null ? null : Number(a.start_price);
+  const m = (n: number) => money(n, cur);
+  const within = price <= budget;
+  const city = (p: string) => p.replace(/\s*\(.*\)/, "");
+  const codeOf = (p: string) => /\(([A-Z]{3})\)/.exec(p)?.[1] ?? city(p);
+  const back = addDays(a.depart, Math.max(0, a.days - 1));
   const who = `${a.adults} adult${a.adults > 1 ? "s" : ""}`;
-  const subject = `${test ? "[Test] " : ""}Price alert: ${a.origin.replace(/\s*\(.*\)/, "")} → ${a.destination.replace(/\s*\(.*\)/, "")} from ${money(price, a.currency)} per person`;
+  const diffBudget = Math.abs(Math.round(price - budget));
+  const change = start != null && start > 0 ? Math.round(price - start) : null;
+  const pct = change != null && start ? Math.round((Math.abs(change) / start) * 100) : 0;
+
+  const C = { coral: "#c8472b", coralSoft: "#fde6dd", ink: "#2b1a14", muted: "#7a6359", line: "#ecdcd0", cream: "#faf5ef", green: "#1f7a3f", greenSoft: "#e1f3e6", red: "#a3261b", redSoft: "#fbe4e1" };
   const font = "font-family:Arial,Helvetica,sans-serif;";
-  const head = test
-    ? `This is a test of your price alert. The price below is today's estimate${price <= Number(a.budget) ? "" : `; it is still above your budget of ${esc(money(a.budget, a.currency))}`}.`
-    : `Good news: flights for your trip are now within your budget of ${esc(money(a.budget, a.currency))} per person.`;
-  const html = `<div style="${font}font-size:15px;line-height:1.5;color:#1d2329;max-width:600px">
-<p style="margin:0 0 12px">${head}</p>
-<table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;width:100%;margin:0 0 14px;border:1px solid #e3e6ea;border-radius:8px">
-<tr><td style="padding:10px 14px;color:#6b7480;font-size:13px">Trip</td><td style="padding:10px 14px"><b>${esc(route)}</b></td></tr>
-<tr><td style="padding:10px 14px;color:#6b7480;font-size:13px;border-top:1px solid #e3e6ea">Dates</td><td style="padding:10px 14px;border-top:1px solid #e3e6ea">${esc(when)} · ${esc(who)}</td></tr>
-<tr><td style="padding:10px 14px;color:#6b7480;font-size:13px;border-top:1px solid #e3e6ea">Price now</td><td style="padding:10px 14px;border-top:1px solid #e3e6ea"><b style="font-size:18px;color:#c8472b">${esc(money(price, a.currency))}</b> per person, return · your budget ${esc(money(a.budget, a.currency))}</td></tr>
-</table>
-<p style="margin:0 0 12px">Call Sunny on <a href="tel:+12142213300" style="color:#c8472b;font-weight:bold;text-decoration:none">${SIGMA.phone}</a> or reply to this email to book.</p>
-<p style="margin:0 0 12px;font-size:12px;color:#6b7480">Estimated price (AI Trip Planner). Sunny will confirm the real fare before booking.</p>
-<p style="margin:0;font-size:12px;color:#6b7480">${test ? "Your alert stays on." : "This alert is now complete."} <a href="${esc(stopUrl)}" style="color:#6b7480">Stop this alert</a></p>
-</div>`;
-  const text = [head, "", `Trip: ${route}`, `Dates: ${when} · ${who}`, `Price now: ${money(price, a.currency)} per person, return (your budget ${money(a.budget, a.currency)})`, "",
-    `Call Sunny on ${SIGMA.phone} or reply to this email to book.`, "Estimated price (AI Trip Planner). Sunny will confirm the real fare before booking.", "",
-    `Stop this alert: ${stopUrl}`].join("\n");
+  const title = within ? "Good news! Your flights are now within budget" : test ? "Your price alert: today's price" : "Your price alert";
+  const lead = within
+    ? `Flights for your trip have dropped to <b>${esc(m(price))}</b> per person, within your budget of <b>${esc(m(budget))}</b>.`
+    : `Today's price is <b>${esc(m(price))}</b> per person, still above your budget of <b>${esc(m(budget))}</b>. We'll email you as soon as it drops to ${esc(m(budget))} or less.`;
+  const budgetChip = within
+    ? `<span style="display:inline-block;background:${C.greenSoft};color:${C.green};font-weight:bold;font-size:13px;padding:5px 10px;border-radius:999px">✓ ${esc(m(diffBudget))} under your budget</span>`
+    : `<span style="display:inline-block;background:${C.redSoft};color:${C.red};font-weight:bold;font-size:13px;padding:5px 10px;border-radius:999px">${esc(m(diffBudget))} above your budget</span>`;
+  const changeLine = change == null || change === 0 ? (change === 0 ? `Same as when you set the alert (${esc(m(start!))}).` : "")
+    : change < 0
+      ? `<span style="color:${C.green};font-weight:bold">▼ ${esc(m(-change))} cheaper (${pct}%)</span> than when you set the alert (<s>${esc(m(start!))}</s>).`
+      : `<span style="color:${C.red};font-weight:bold">▲ ${esc(m(change))} higher (${pct}%)</span> than when you set the alert (${esc(m(start!))}).`;
+
+  const subject = within
+    ? `${test ? "[Test] " : ""}✅ Price drop: ${city(a.origin)} → ${city(a.destination)} now ${m(price)} per person (budget ${m(budget)})`
+    : `${test ? "[Test] " : ""}Price alert: ${city(a.origin)} → ${city(a.destination)} now ${m(price)} per person (budget ${m(budget)})`;
+
+  const html = `<div style="background:${C.cream};padding:20px 0;${font}">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background:#ffffff;border:1px solid ${C.line};border-radius:14px;border-collapse:separate;overflow:hidden">
+<tr><td style="background:${C.coral};padding:16px 24px">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>
+    <td style="${font}color:#ffffff;font-size:18px;font-weight:bold">${logo ? `<img src="${esc(logo)}" width="64" height="35" alt="" style="vertical-align:middle;border:0;background:#fff;border-radius:6px;padding:2px;margin-right:10px">` : "Σ "}Sigma Tours &amp; Travels</td>
+    <td align="right" style="${font}color:#ffffff;font-size:12px;letter-spacing:.08em;font-weight:bold">${test ? "TEST · " : ""}PRICE ALERT</td>
+  </tr></table>
+</td></tr>
+${test ? `<tr><td style="background:#fff7e0;color:#6b4d00;${font}font-size:13px;padding:8px 24px">This is a test email sent from “Send test email”. Your alert stays on.</td></tr>` : ""}
+<tr><td style="padding:24px 24px 8px">
+  <div style="${font}font-size:22px;line-height:1.3;font-weight:bold;color:${C.ink};margin:0 0 8px">${within ? "🎉 " : "🔔 "}${title}</div>
+  <div style="${font}font-size:15px;line-height:1.5;color:${C.ink}">${lead}</div>
+</td></tr>
+<tr><td style="padding:12px 24px">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${C.line};border-radius:12px;background:${within ? C.greenSoft : C.coralSoft}">
+  <tr><td style="padding:18px 20px">
+    <div style="${font}font-size:12px;letter-spacing:.06em;color:${C.muted};font-weight:bold">PRICE NOW · PER PERSON, RETURN</div>
+    <div style="${font}font-size:36px;font-weight:bold;color:${within ? C.green : C.coral};margin:4px 0 8px">${esc(m(price))}</div>
+    <div style="margin:0 0 8px">${budgetChip}</div>
+    ${changeLine ? `<div style="${font}font-size:14px;color:${C.ink}">${changeLine}</div>` : ""}
+  </td></tr></table>
+</td></tr>
+<tr><td style="padding:8px 24px 4px">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${C.line};border-radius:12px">
+  <tr>
+    <td style="padding:14px 18px;${font}">
+      <div style="font-size:26px;font-weight:bold;color:${C.ink}">${esc(codeOf(a.origin))} <span style="color:${C.coral}">✈</span> ${esc(codeOf(a.destination))}</div>
+      <div style="font-size:13px;color:${C.muted}">${esc(a.origin)} → ${esc(a.destination)}</div>
+    </td>
+    <td align="right" style="padding:14px 18px;${font}font-size:14px;color:${C.ink};line-height:1.6">
+      <b>${esc(nice(a.depart))}</b> → <b>${esc(nice(back))}</b><br>${esc(who)} · Your budget ${esc(m(budget))}
+    </td>
+  </tr></table>
+</td></tr>
+<tr><td style="padding:18px 24px 8px" align="center">
+  <a href="tel:+12142213300" style="display:inline-block;background:${C.coral};color:#ffffff;${font}font-size:16px;font-weight:bold;text-decoration:none;padding:13px 26px;border-radius:10px">📞 Call Sunny · ${SIGMA.phone}</a>
+  <div style="${font}font-size:13px;color:${C.muted};margin:8px 0 0">or reply to this email to book</div>
+</td></tr>
+<tr><td style="padding:16px 24px 20px;border-top:1px solid ${C.line}">
+  <div style="${font}font-size:12px;line-height:1.5;color:${C.muted}">Estimated price from the AI Trip Planner. Sunny will confirm the real fare before booking.<br>
+  ${within && !test ? "This alert is now complete." : "We check once a day until the travel date."} <a href="${esc(stopUrl)}" style="color:${C.muted}">Stop this alert</a></div>
+</td></tr>
+</table></div>`;
+
+  const text = [
+    test ? "[TEST EMAIL — your alert stays on]" : "",
+    within ? `Good news! Flights for your trip are now ${m(price)} per person, within your budget of ${m(budget)} (${m(diffBudget)} under).`
+      : `Today's price is ${m(price)} per person, ${m(diffBudget)} above your budget of ${m(budget)}.`,
+    change == null || change === 0 ? "" : change < 0 ? `Down ${m(-change)} (${pct}%) since you set the alert (was ${m(start!)}).` : `Up ${m(change)} (${pct}%) since you set the alert (was ${m(start!)}).`,
+    "", `Trip: ${a.origin} → ${a.destination}`, `Dates: ${nice(a.depart)} – ${nice(back)} · ${who}`, "",
+    `Call Sunny on ${SIGMA.phone} or reply to this email to book.`, "Estimated price from the AI Trip Planner. Sunny will confirm the real fare before booking.", "",
+    `Stop this alert: ${stopUrl}`,
+  ].filter((l, i, xs) => l !== "" || xs[i - 1] !== "").join("\n").trim();
   return { subject, html, text };
 }
 
@@ -88,7 +151,7 @@ export async function checkAlert(a: AlertRow, origin: string, test = false): Pro
   if (price != null && (within || test)) {
     const stopUrl = `${origin}/api/trips?stop=${a.stop_token}`;
     const team = process.env.NOTIFY_CC !== undefined ? list(process.env.NOTIFY_CC) : [...DEFAULT_CC];
-    const sent = await sendEmail({ ...alertEmail(row, price, stopUrl, test), to: [a.email], cc: team, replyTo: process.env.EMAIL_REPLY_TO?.trim() || SIGMA.email });
+    const sent = await sendEmail({ ...alertEmail(row, price, stopUrl, test, `${origin}/sigma-logo.png`), to: [a.email], cc: team, replyTo: process.env.EMAIL_REPLY_TO?.trim() || SIGMA.email });
     emailed = sent.ok;
     if (!sent.ok) reason = sent.reason;
     if (sent.ok && within && !test && row.status === "active") row = (await updateAlert(a.id, { status: "notified", notified_at: new Date().toISOString() })) ?? row;
