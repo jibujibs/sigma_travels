@@ -8,6 +8,8 @@ import { CopilotDrawer } from "./components/CopilotDrawer";
 import { HomeAirport } from "./components/HomeAirport";
 import { IdeaForm } from "./components/IdeaForm";
 import { MyTrips } from "./components/MyTrips";
+import { PriceAlerts } from "./components/PriceAlerts";
+import type { BudgetCap, PriceAlert } from "../shared/priceAlert";
 import { PlanView } from "./components/PlanView";
 import { Recommendations } from "./components/Recommendations";
 import { api, ApiError, type Profile, type TripSummary } from "./lib/api";
@@ -83,6 +85,17 @@ export default function App({ user, onSaveHomeAirport, onSignOut, nav, brand }: 
   const [tripsOn, setTripsOn] = useState<boolean | null>(null);
   const [trips, setTrips] = useState<TripSummary[]>([]);
   const [showTrips, setShowTrips] = useState(false);
+  /** The budget typed in the last request ("under $1000"), checked on the plan. */
+  const [cap, setCap] = useState<BudgetCap | null>(null);
+  const [alerts, setAlerts] = useState<PriceAlert[] | null>(null);
+  const [showAlerts, setShowAlerts] = useState(false);
+  useEffect(() => {
+    let live = true;
+    // Hidden until the price_alerts table exists (503) or when signed out.
+    api.alerts.list().then((r) => { if (live) setAlerts(r.alerts); }).catch(() => { if (live) setAlerts(null); });
+    return () => { live = false; };
+  }, []);
+  const putAlert = (a: PriceAlert) => setAlerts((xs) => [a, ...(xs ?? []).filter((x) => x.id !== a.id)]);
   const [tripBusy, setTripBusy] = useState<string | null>(null);
   const [savedFor, setSavedFor] = useState<PlanState | null>(null);
   // True once the traveller ticks "I need" boxes by hand; a request that names no specific parts then keeps their ticks.
@@ -145,6 +158,7 @@ export default function App({ user, onSaveHomeAirport, onSignOut, nav, brand }: 
     const formNeeds = needsTouched ? needsOf(brief) : { ...ALL_NEEDS };
     let b: TripBrief = { ...brief, needs: formNeeds };
     let place: Place | null = null;
+    setCap(null);
     if (brief.idea.trim()) {
       // If reading the request fails, carry on as a normal search instead of showing an error.
       // Even then, From and To are read from the typed words ("from Dubai to Kochi").
@@ -154,6 +168,7 @@ export default function App({ user, onSaveHomeAirport, onSignOut, nav, brand }: 
         catch (e) { if ((e as Error).name === "AbortError") throw e; console.warn("Couldn't read the request:", (e as Error).message); return failed; }
       });
       if (!intent) return; // stopped
+      setCap(intent.budget ?? null);
       const notes: string[] = [];
       // The city the request says they fly from always beats the home airport in the From box.
       const from = intent.origin ? airportLabel(intent.origin.city, intent.origin.airport) : "";
@@ -275,6 +290,7 @@ export default function App({ user, onSaveHomeAirport, onSignOut, nav, brand }: 
         {brand ?? <div className="brand"><span className="logo">Σ</span>Sigma Travels · Trip Planner</div>}
         {nav}
         <div className="top-actions">
+          {alerts && (alerts.length > 0 || cap) && <button className="btn" onClick={() => setShowAlerts((v) => !v)} aria-expanded={showAlerts}>🔔 Alerts{alerts.filter((a) => a.status === "active").length ? ` (${alerts.filter((a) => a.status === "active").length})` : ""}</button>}
           {tripsOn && <button className="btn" onClick={() => setShowTrips((v) => !v)} aria-expanded={showTrips}>My trips{trips.length ? ` (${trips.length})` : ""}</button>}
           <AccountMenu user={user} onChangeAirport={() => setEditAirport(true)} onSignOut={onSignOut} />
         </div>
@@ -302,6 +318,7 @@ export default function App({ user, onSaveHomeAirport, onSignOut, nav, brand }: 
         </div>
       )}
 
+      {showAlerts && alerts && <PriceAlerts alerts={alerts} onChange={putAlert} onClose={() => setShowAlerts(false)} toast={toast} />}
       {showTrips && tripsOn && <MyTrips trips={trips} busyId={tripBusy} onOpen={openTrip} onDelete={deleteTrip} onClose={() => setShowTrips(false)} />}
 
       <IdeaForm
@@ -345,6 +362,9 @@ export default function App({ user, onSaveHomeAirport, onSignOut, nav, brand }: 
         toast={toast}
         onSave={tripsOn ? saveTrip : undefined}
         saved={savedFor === planState}
+        cap={cap}
+        email={user.email}
+        onAlert={putAlert}
       />}
 
       <CopilotDrawer guestId={guestId} getContext={getContext} hasPlan={!!planState} raised={!!planState} />

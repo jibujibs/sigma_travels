@@ -6,6 +6,10 @@
       "destination": "/api/health?check=1"
     },
     {
+      "source": "/api/alerts-cron",
+      "destination": "/api/trips?cron=1"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
@@ -24,7 +28,7 @@
       "maxDuration": 300
     },
     "api/trips.ts": {
-      "maxDuration": 30
+      "maxDuration": 300
     },
     "api/intent.ts": {
       "maxDuration": 60
@@ -48,4 +52,11 @@
       "maxDuration": 300
     }
   }
+,
+  "crons": [
+    {
+      "path": "/api/alerts-cron",
+      "schedule": "17 3 * * *"
+    }
+  ]
 }

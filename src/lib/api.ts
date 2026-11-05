@@ -1,5 +1,6 @@
 import type { ManageView, PaymentLink, PayRail, PayView, PnrResponse } from "../../shared/booking";
 import type { IntentResponse, PlanResponse, RecommendResponse, Recommendation, TripBrief, TripPlan } from "../../shared/types";
+import type { PriceAlert } from "../../shared/priceAlert";
 import type { VoiceCheck, VoiceRequest, VoiceStatus, VoiceTrip } from "../../shared/voice";
 import type { FlightOption, FlightQuery, ShortlistItem } from "../../shared/flights";
 import { dropSession, getAccessToken } from "./auth";
@@ -52,6 +53,7 @@ export interface TripSummary {
 export interface SavedTrip extends TripSummary {
   segments: { plan: TripPlan; sel: PlanState["sel"]; carOn: boolean; food: PlanState["food"] };
 }
+export interface AlertCheck { alert: PriceAlert; price: number | null; within: boolean; emailed: boolean; reason?: string }
 export interface ChatMsg { role: "user" | "assistant"; content: string }
 
 export interface Profile { email: string; name: string; avatar: string; homeAirport: string }
@@ -71,6 +73,14 @@ export const api = {
   },
   booking: {
     find: (pnr: string, email: string) => post<ManageView>("/api/booking", { pnr, email }),
+  },
+  alerts: {
+    list: () => request<{ alerts: PriceAlert[] }>("GET", "/api/trips?alerts=1"),
+    create: (a: { email: string; origin: string; destination: { city: string; country: string; airport: string }; depart: string; days: number; adults: number; budget: number; currency: string; price: number | null }) =>
+      request<{ alert: PriceAlert }>("PATCH", "/api/trips", { action: "alert-create", ...a }),
+    check: (id: string) => request<AlertCheck>("PATCH", "/api/trips", { action: "alert-check", id }),
+    test: (id: string) => request<AlertCheck>("PATCH", "/api/trips", { action: "alert-test", id }),
+    stop: (id: string) => request<{ alert: PriceAlert }>("PATCH", "/api/trips", { action: "alert-stop", id }),
   },
   voice: {
     send: (m: { name: string; phone: string; email: string; audio: string; mime: string; seconds: number; replaces?: string }) =>
