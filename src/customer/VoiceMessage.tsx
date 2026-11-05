@@ -69,6 +69,8 @@ export function VoiceMessage() {
   const [replaces, setReplaces] = useState<string>();
   /** The customer pressed "Change details" on the confirm screen. */
   const [editing, setEditing] = useState(false);
+  /** What "Change details" filled in, to tell whether anything was changed. */
+  const [editStart, setEditStart] = useState<Answers>(NO_ANSWERS);
   const recRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunks = useRef<Blob[]>([]);
@@ -176,8 +178,12 @@ export function VoiceMessage() {
     const empty = check.missing.find((q) => q.key !== "speech" && !answers[q.key as keyof Answers].trim());
     if (empty) return setError(`Please answer: ${empty.question}`);
     setError(undefined);
+    // Nothing changed in "Change details": straight back to the summary (no new read, no new line for Sunny).
+    if (editing && check.confirm && (["from", "to", "date"] as const).every((k) => answers[k].trim() === editStart[k].trim())) {
+      setEditing(false); setPhase("confirm"); return;
+    }
     setPhase("sending");
-    try { afterCheck(await api.voice.answer(check.id, answers)); }
+    try { afterCheck(await api.voice.answer(check.id, answers, editing)); }
     catch (err) { setError((err as Error).message); setPhase("ask"); }
   }
 
@@ -194,7 +200,9 @@ export function VoiceMessage() {
   function changeDetails() {
     const t = check?.confirm;
     if (!check || !t) return;
-    setAnswers({ from: placeLabel(t.from), to: placeLabel(t.to), date: t.depart ? dayLabel(t.depart) : "" });
+    const start = { from: placeLabel(t.from), to: placeLabel(t.to), date: t.depart ? dayLabel(t.depart) : "" };
+    setAnswers(start);
+    setEditStart(start);
     setCheck({ ...check, missing: EDIT_QUESTIONS });
     setEditing(true);
     setError(undefined);

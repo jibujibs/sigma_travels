@@ -298,7 +298,9 @@ export const PATCH = handle(async (request) => {
     const a = body.answers;
     const typed = [a.from && `flying from ${a.from}`, a.to && `flying to ${a.to}`, a.date && `travel date ${a.date}`].filter(Boolean).join("; ");
     if (!typed) throw new HttpError(400, "Type the missing details first.");
-    const english = `${current.transcript_en ?? ""}\n\n(Typed by the customer: ${typed}.)`.trim();
+    // "Change details" sends From, To and Date together: they replace the earlier typed line, so Sunny sees one.
+    const base = body.replace ? (current.transcript_en ?? "").replace(/\s*\(Typed by the customer: [^)]*\)\s*/g, "\n").trim() : current.transcript_en ?? "";
+    const english = `${base}\n\n(Typed by the customer: ${typed}.)`.trim();
     const trip = withDateCheck(await readTrip(english, new Date(current.created_at)), current.created_at);
     const saved = (await saveTrip(current.id, trip, { transcript_en: english })) ?? { ...current, transcript_en: english };
     const read = { row: saved, trip, failed: false };

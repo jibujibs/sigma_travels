@@ -165,6 +165,8 @@ export const voicePatchSchema = z.union([
   z.object({
     id: z.string().uuid(), action: z.literal("answer"),
     answers: z.object({ from: z.string().trim().max(80).default(""), to: z.string().trim().max(80).default(""), date: z.string().trim().max(60).default("") }),
+    /** "Change details": these answers replace the earlier typed ones instead of adding another line. */
+    replace: z.boolean().default(false),
   }),
   z.object({ id: z.string().uuid(), action: z.literal("save-trip"), trip: z.record(z.unknown()) }),
   z.object({ id: z.string().uuid(), action: z.literal("flights-search"), query: flightQuerySchema }),
