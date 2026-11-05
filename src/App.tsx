@@ -9,6 +9,7 @@ import { HomeAirport } from "./components/HomeAirport";
 import { IdeaForm } from "./components/IdeaForm";
 import { MyTrips } from "./components/MyTrips";
 import { PriceAlerts } from "./components/PriceAlerts";
+import { Corporates } from "./components/Corporates";
 import type { BudgetCap, PriceAlert } from "../shared/priceAlert";
 import { PlanView } from "./components/PlanView";
 import { Recommendations } from "./components/Recommendations";
@@ -290,6 +291,7 @@ export default function App({ user, onSaveHomeAirport, onSignOut, nav, brand }: 
         {brand ?? <div className="brand"><span className="logo">Σ</span>Sigma Travels · Trip Planner</div>}
         {nav}
         <div className="top-actions">
+          <Corporates />
           {alerts && (alerts.length > 0 || cap) && <button className="btn" onClick={() => setShowAlerts((v) => !v)} aria-expanded={showAlerts}>🔔 Alerts{alerts.filter((a) => a.status === "active").length ? ` (${alerts.filter((a) => a.status === "active").length})` : ""}</button>}
           {tripsOn && <button className="btn" onClick={() => setShowTrips((v) => !v)} aria-expanded={showTrips}>My trips{trips.length ? ` (${trips.length})` : ""}</button>}
           <AccountMenu user={user} onChangeAirport={() => setEditAirport(true)} onSignOut={onSignOut} />
