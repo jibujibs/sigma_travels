@@ -21,13 +21,14 @@ import { customerQuestions, normalizeTrip, properName, withDateCheck, voicePatch
  *   PATCH /api/voice  { id, action: "read-trip" }                  Gemini reads the trip from the text again
  *   PATCH /api/voice  { id, action: "retry" }                      voice → text again from the saved recording
  *   PATCH /api/voice  { id, action: "answer", answers }             the customer types what was missing (from, to, date)
+ *   PATCH /api/voice  { id, action: "confirm" }                    the customer confirms the trip: search + email start
  *   PATCH /api/voice  { id, action: "flights-search", query }       real flights (Google Flights via SerpApi)
  *   PATCH /api/voice  { id, action: "flights-return", query, token } return flights for one outbound flight
  *   PATCH /api/voice  { id, action: "flights-save", shortlist }      Sunny's chosen options
  *   PATCH /api/voice  { id, action: "email-pdf", to, cc, note, pdf } email the itinerary PDF to the customer (Gmail)
  * Request Tickets reads the message first (voice → text → trip, about 10-20 s). If the from city, the
  * destination city or the date is missing, the customer is asked for it (POST returns the questions,
- * then PATCH "answer"); once complete, the flight search and Sunny's email run in the background
+ * then PATCH "answer"); once complete the customer confirms it (PATCH "confirm"), then the flight search and Sunny's email run in the background
  * (waitUntil) and the Agent tab shows the results when ready.
  * Sign-in is required for now, like the rest of the site (demo); the Customer tab can be opened up later.
  * (api/diag.ts was folded into a rewrite to make room for this file: the Vercel Hobby plan allows 12 functions.)
@@ -246,11 +247,23 @@ export const POST = handle(async (request) => {
   const missing = questionsFor(read);
   const check: VoiceCheck = { id: row.id, missing, heard: read.row.transcript_en ?? "" };
   if (missing.length) return json(check);
-
-  // Complete: the flight search and Sunny's email run after this response; the Agent tab shows them when ready.
-  waitUntil(finishVoice(read.row, read.trip, originOf(request), true).catch((e) => console.error("[voice] background step failed", e)));
-  return json(check);
+  // Gemini couldn't read it: nothing to confirm, so it goes straight to Sunny (Try again in the Agent tab).
+  if (read.failed || !read.trip) {
+    waitUntil(finishVoice(read.row, read.trip, originOf(request), true).catch((e) => console.error("[voice] background step failed", e)));
+    return json(check);
+  }
+  // Complete: the customer checks what was understood; "Yes, send" (PATCH confirm) starts search and email.
+  await awaitConfirm(read.row);
+  return json({ ...check, confirm: read.trip });
 });
+
+/** Shown to Sunny while the customer checks the details; the automatic search replaces it once they confirm. */
+const AWAITING_CONFIRM = "Waiting for the customer to confirm the trip details.";
+
+/** Complete: keep search and email until the customer confirms (the Agent tab shows that it's waiting). */
+async function awaitConfirm(row: VoiceRow): Promise<void> {
+  await saveFlights(row.id, { search: null, shortlist: [], note: AWAITING_CONFIRM }).catch(() => null);
+}
 
 /** Closes the customer's own earlier, incomplete message (never someone else's). */
 async function closeIfMine(id: string, email: string): Promise<void> {
@@ -290,8 +303,21 @@ export const PATCH = handle(async (request) => {
     const saved = (await saveTrip(current.id, trip, { transcript_en: english })) ?? { ...current, transcript_en: english };
     const read = { row: saved, trip, failed: false };
     const missing = questionsFor(read);
-    if (!missing.length) waitUntil(finishVoice(saved, trip, originOf(request), true).catch((e) => console.error("[voice] background step failed", e)));
     const check: VoiceCheck = { id: current.id, missing, heard: english };
+    if (missing.length || !trip) return json(check);
+    await awaitConfirm(saved);
+    return json({ ...check, confirm: trip });
+  } else if ("action" in body && body.action === "confirm") {
+    // The customer pressed "Yes, send": now search flights and email Sunny (once).
+    const current = await voiceById(body.id);
+    if (!current || current.submitted_by !== user.email) throw new HttpError(404, "That voice message wasn't found.");
+    const trip = tripOf(current);
+    if (questionsFor({ row: current, trip, failed: false }).length) throw new HttpError(409, "Some trip details are still missing.");
+    if (flightsOf(current)?.note === AWAITING_CONFIRM) {
+      await saveFlights(current.id, { search: null, shortlist: [] }).catch(() => null);
+      waitUntil(finishVoice(current, trip, originOf(request), true).catch((e) => console.error("[voice] background step failed", e)));
+    }
+    const check: VoiceCheck = { id: current.id, missing: [], heard: current.transcript_en ?? "" };
     return json(check);
   } else if ("status" in body) {
     row = await updateVoice(body.id, { status: body.status });
