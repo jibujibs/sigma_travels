@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { VOICE_STATUSES, type VoiceRequest, type VoiceStatus, type VoiceTrip } from "../../shared/voice";
 import { api } from "../lib/api";
 import { VoiceFlights } from "./VoiceFlights";
+import { ChoiceCard } from "./ChoiceCard";
 import { VoiceTripBox } from "./VoiceTripBox";
 
 const STATUS_LABEL: Record<VoiceStatus, string> = { new: "New", contacted: "Contacted", ticketed: "Ticketed", closed: "Closed" };
@@ -22,7 +23,7 @@ let listCache: VoiceRequest[] | null = (() => {
 const detailCache = new Map<string, { v: VoiceRequest; key: string }>();
 /** Changes whenever the request needs reloading in full: text read, trip changed, a search saved, status… */
 const keyOf = (v: VoiceRequest) => [v.processing, v.searching, v.english, v.status, v.error ?? "", JSON.stringify(v.trip),
-  v.flightsAt ?? v.flights?.search?.at ?? v.flights?.note ?? ""].join("|");
+  v.flightsAt ?? v.flights?.search?.at ?? v.flights?.note ?? "", v.chosenAt ?? v.choice?.confirmedAt ?? ""].join("|");
 
 export function VoiceInbox({ onOpenPlanner, onNewCount }: { onOpenPlanner: (trip: VoiceTrip, from: string) => void; onNewCount?: (n: number) => void }) {
   const [items, setItemsRaw] = useState<VoiceRequest[] | null>(listCache);
@@ -131,6 +132,7 @@ export function VoiceInbox({ onOpenPlanner, onNewCount }: { onOpenPlanner: (trip
           <span className="vi-row-when">{v.id === newestId ? timeOf(v.createdAt) : dayOf(v.createdAt)}</span>
         </span>
         <span className="vi-row-trip">{v.processing ? "Reading the message…" : tripLine(v.trip) || (v.error ? "Couldn't read · try again" : "No trip details")}</span>
+        {(v.chosenAt || v.choice) && <span className="vi-chosen">✅ Customer chose a flight</span>}
       </button>
     </li>
   );
@@ -239,6 +241,7 @@ function Detail({ v, saving, onStatus, onRetry, onOpenPlanner, onChange }: {
       {!v.audioUrl && !v.light && <p className="hint small">The recording can't be played right now.</p>}
 
       {v.light && !v.processing && <p className="vf-finding" role="status"><span className="spin" aria-hidden="true" /> Loading flights and the recording…</p>}
+      {!v.processing && !v.light && v.choice && <ChoiceCard c={v.choice} />}
       {!v.processing && !v.light && <VoiceTripBox v={v} onOpenPlanner={(trip) => onOpenPlanner(trip, v.name)} onChange={onChange} />}
       {!v.processing && !v.light && v.english && <VoiceFlights key={`${v.id}:${JSON.stringify(v.trip)}`} v={v} onChange={onChange} />}
     </article>

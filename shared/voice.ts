@@ -1,3 +1,4 @@
+import type { CustomerChoice } from "./choose.js";
 import { z } from "zod";
 import { flightQuerySchema, SHORTLIST_MAX, type VoiceFlights } from "./flights.js";
 import { airportFor } from "./airports.js";
@@ -69,6 +70,10 @@ export interface VoiceRequest {
   flights: VoiceFlights | null;
   /** False when the flights column hasn't been added in Supabase yet. */
   flightsSaved: boolean;
+  /** The customer's chosen option and passenger details (full request only; signed-in agents). */
+  choice?: CustomerChoice | null;
+  /** List entries: when the customer confirmed their choice. */
+  chosenAt?: string;
 }
 
 /* ---------- trip details read from the message (phase B) ---------- */

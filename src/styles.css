@@ -828,3 +828,41 @@ table.tickets td,table.tickets th{padding:6px}
 .corp-actions .btn{text-decoration:none;display:inline-flex;align-items:center}
 .corp-back{margin-top:10px;background:none;border:0;color:var(--teal);font-weight:600;cursor:pointer;padding:4px 0}
 .corp-menu.corp-left{right:auto;left:0}
+
+/* Customer choose page (/choose/<token>) */
+.ch-wrap{max-width:820px}
+.ch-form{display:grid;gap:20px}
+.ch-options{display:grid;gap:10px}
+.ch-opt{display:grid;gap:6px;border:1.5px solid var(--line);border-radius:14px;padding:14px 16px 14px 46px;position:relative;cursor:pointer;background:var(--surface)}
+.ch-opt input{position:absolute;left:16px;top:17px;width:18px;height:18px;accent-color:var(--teal)}
+.ch-opt.on{border-color:var(--teal);background:var(--teal-soft)}
+.ch-opt-head{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+.ch-opt-n{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--teal)}
+.ch-price{margin-left:auto;font-weight:700;font-size:17px}
+.ch-leg{display:grid;gap:1px}
+.ch-leg-l{font-size:12.5px;color:var(--muted)}
+.ch-leg-t{font-size:15px}
+.ch-leg-s{font-size:13px;color:var(--muted)}
+.ch-pax{border:1px solid var(--line);border-radius:14px;padding:14px 16px 12px;margin:0;display:grid;gap:10px;min-width:0}
+.ch-pax legend{font-weight:700;padding:0 6px}
+.ch-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px 14px}
+.ch-grid .field{display:grid;gap:4px;min-width:0}
+.ch-grid input,.ch-grid select,.ch-form textarea{width:100%;box-sizing:border-box}
+.caps{text-transform:uppercase}
+.ch-warn{margin:0;padding:8px 12px;border-radius:10px;background:#fff4dc;color:#7a5200;font-size:14px}
+.ch-more{justify-self:start;background:none;border:0;color:var(--teal);font-weight:600;cursor:pointer;padding:2px 0;font:inherit;font-size:14px}
+.ch-submit{justify-self:start;min-width:220px}
+/* Agent tab: the customer's choice */
+.vi-chosen{font-size:12.5px;font-weight:600;color:#1f7a3f}
+.ci-box{border:2px solid #1f7a3f;border-radius:14px;background:var(--surface);padding:14px 16px;display:grid;gap:10px;min-width:0}
+.ci-head{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap;justify-content:space-between}
+.ci-head h3{margin:0;font-size:17px;color:#1f7a3f}
+.ci-flight{display:grid;gap:2px}
+.ci-flight .small,.ci-box .small{font-size:13px;color:var(--muted)}
+.ci-table-wrap{overflow-x:auto}
+.ci-table{border-collapse:collapse;width:100%;font-size:13.5px}
+.ci-table th{text-align:left;font-size:12px;color:var(--muted);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.ci-table td{padding:7px 8px;border-bottom:1px solid var(--line);white-space:nowrap}
+.ci-warn{color:#a35a00;font-weight:600}
+.ci-extras{margin:0;padding-left:18px;font-size:13.5px}
+.ci-actions{display:flex;gap:8px;flex-wrap:wrap}
