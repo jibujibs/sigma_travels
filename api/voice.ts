@@ -6,7 +6,9 @@ import { voiceEmail } from "../server/voiceEmail.js";
 import { customerPdfEmail, SIGMA } from "../server/customerEmail.js";
 import { handle, HttpError, json, parseBody } from "../server/http.js";
 import { originOf } from "../server/payments.js";
-import { downloadAudio, insertVoice, isMissingColumn, listVoiceLight, signedAudioUrl, updateVoice, uploadAudio, voiceById, type VoiceListRow, type VoiceRow } from "../server/supabase.js";
+import { downloadAudio, insertVoice, isMissingColumn, listVoiceLight, signedAudioUrl, updateVoice, uploadAudio, voiceByChooseToken, voiceById, type VoiceListRow, type VoiceRow } from "../server/supabase.js";
+import { checkPassengers, chooseSubmitSchema, isInternational, type ChoiceRecord, type ChooseView, type CustomerChoice } from "../shared/choose.js";
+import { choiceForCustomer, choiceForSunny } from "../server/chooseEmail.js";
 import { flightsConfigured, returnFlights, searchFlights } from "../server/flights.js";
 import { readTrip, transcribe } from "../server/voice.js";
 import { autoSearchBlockers, currencyOf, queryFromTrip, topThree, type FlightQuery, type ShortlistItem, type VoiceFlights } from "../shared/flights.js";
@@ -25,7 +27,10 @@ import { customerQuestions, normalizeTrip, properName, withDateCheck, voicePatch
  *   PATCH /api/voice  { id, action: "flights-search", query }       real flights (Google Flights via SerpApi)
  *   PATCH /api/voice  { id, action: "flights-return", query, token } return flights for one outbound flight
  *   PATCH /api/voice  { id, action: "flights-save", shortlist }      Sunny's chosen options
- *   PATCH /api/voice  { id, action: "email-pdf", to, cc, note, pdf } email the itinerary PDF to the customer (Gmail)
+ *   PATCH /api/voice  { id, action: "email-pdf", to, cc, note, pdf } email the itinerary PDF to the customer (Gmail),
+ *                                                                   with a "Choose this option" button per option
+ *   GET   /api/voice?choose=<token>                                 public: the customer's choose page (no sign-in)
+ *   POST  /api/voice?choose=<token>  { option, passengers, contact } public: the customer confirms an option + passport details
  * Request Tickets reads the message first (voice → text → trip, about 10-20 s). If the from city, the
  * destination city or the date is missing, the customer is asked for it (POST returns the questions,
  * then PATCH "answer"); once complete the customer confirms it (PATCH "confirm"), then the flight search and Sunny's email run in the background
@@ -64,6 +69,26 @@ const TRIP_SQL = "Run supabase/voice_requests.sql again in the Supabase SQL Edit
 /** Rows saved before phase B, or before the trip column exists, have no trip: null. */
 const tripOf = (r: VoiceRow): VoiceTrip | null => normalizeTrip(r.trip, Boolean((r.trip as { edited?: boolean } | null)?.edited));
 
+const CHOICE_SQL = "Run supabase/voice_requests.sql again in the Supabase SQL Editor (it adds the choice and choose_token columns).";
+
+/** The options emailed to the customer and what they chose (null before the first email with buttons). */
+const choiceRecordOf = (r: VoiceRow): ChoiceRecord | null => {
+  const c = r.choice as ChoiceRecord | null | undefined;
+  return c && typeof c === "object" && Array.isArray(c.offered) ? { offered: c.offered, offeredAt: c.offeredAt ?? "", chosen: c.chosen ?? null } : null;
+};
+
+/** A secret for the customer's choose link, kept on the row (null when the column isn't there yet). */
+async function chooseTokenFor(r: VoiceRow): Promise<string | null> {
+  if (r.choose_token) return r.choose_token;
+  if (!("choose_token" in r)) return null;
+  const token = Buffer.from(crypto.getRandomValues(new Uint8Array(24))).toString("base64url");
+  await updateVoice(r.id, { choose_token: token });
+  return token;
+}
+
+/** Ticketed or closed: the customer can't change their choice any more. */
+const choiceLocked = (r: VoiceRow) => r.status === "ticketed" || r.status === "closed";
+
 /** Background work gets this long before the inbox stops showing "processing" and offers Try again. */
 const PROCESSING_MS = 3 * 60_000;
 const isProcessing = (r: Pick<VoiceRow, "transcript_en" | "error" | "created_at">) => !r.transcript_en && !r.error && Date.now() - Date.parse(r.created_at) < PROCESSING_MS;
@@ -91,6 +116,7 @@ function toListView(r: VoiceListRow): VoiceRequest {
     flightsSaved: flightsColumn,
     light: true,
     flightsAt: r.flights_at ?? r.flights_note ?? "",
+    ...(r.chosen_at ? { chosenAt: r.chosen_at } : {}),
   };
 }
 
@@ -114,6 +140,7 @@ async function toView(r: VoiceRow): Promise<VoiceRequest> {
     tripSaved: "trip" in r,
     flights: flightsOf(r),
     flightsSaved: "flights" in r,
+    choice: choiceRecordOf(r)?.chosen ?? null,
   };
 }
 
@@ -226,6 +253,8 @@ async function autoFlights(row: VoiceRow, trip: VoiceTrip | null): Promise<Voice
 }
 
 export const POST = handle(async (request) => {
+  const choose = new URL(request.url).searchParams.get("choose");
+  if (choose !== null) return json(await submitChoice(request, choose));
   const user = await requireUser(request);
   const body = await parseBody(request, voiceSubmitSchema);
   const mime = body.mime.split(";")[0].trim().toLowerCase();
@@ -272,6 +301,8 @@ async function closeIfMine(id: string, email: string): Promise<void> {
 }
 
 export const GET = handle(async (request) => {
+  const choose = new URL(request.url).searchParams.get("choose");
+  if (choose !== null) return json(await chooseView(choose));
   await requireUser(request);
   // GET ?id=…: one request in full (flights + a fresh recording link), for the request Sunny opens.
   const id = new URL(request.url).searchParams.get("id");
@@ -359,7 +390,13 @@ export const PATCH = handle(async (request) => {
     const pdf = Buffer.from(body.pdf, "base64");
     if (pdf.subarray(0, 5).toString("latin1") !== "%PDF-") throw new HttpError(400, "That isn't a PDF.");
     const origin = originOf(request);
-    const mail = customerPdfEmail(current.name, prev.shortlist, body.note, `${origin}/sigma-logo.png`);
+    // Each option gets a "Choose this option" button to the customer's own page (once the columns exist).
+    const token = await chooseTokenFor(current).catch((e) => { if (isMissingColumn(e, "choose_token")) return null; throw e; });
+    if (token) {
+      const record = choiceRecordOf(current);
+      await updateVoice(current.id, { choice: { offered: prev.shortlist, offeredAt: new Date().toISOString(), chosen: record?.chosen ?? null } satisfies ChoiceRecord });
+    } else console.warn("[voice] choose buttons left out of the email; " + CHOICE_SQL);
+    const mail = customerPdfEmail(current.name, prev.shortlist, body.note, `${origin}/sigma-logo.png`, token ? `${origin}/choose/${token}` : "");
     const sent = await sendEmail({
       subject: mail.subject, html: mail.html, text: mail.text,
       to: [body.to], cc: body.cc,
@@ -390,3 +427,66 @@ export const PATCH = handle(async (request) => {
   if (!row) throw new HttpError(404, "That voice message wasn't found.");
   return json({ request: await toView(row) });
 });
+
+/* ---------- the customer's choose page (public: the link's secret is the only key) ---------- */
+
+const TOKEN_RE = /^[A-Za-z0-9_-]{24,64}$/;
+
+async function rowForToken(token: string): Promise<{ row: VoiceRow; record: ChoiceRecord }> {
+  if (!TOKEN_RE.test(token)) throw new HttpError(404, "This link isn't valid. Ask Sunny to send it again.");
+  const row = await voiceByChooseToken(token);
+  const record = row && choiceRecordOf(row);
+  if (!row || !record?.offered.length) throw new HttpError(404, "This link isn't valid. Ask Sunny to send it again.");
+  return { row, record };
+}
+
+async function chooseView(token: string): Promise<ChooseView> {
+  const { row, record } = await rowForToken(token);
+  const first = record.offered[0];
+  const from = first.out.legs[0].from, to = first.out.legs[first.out.legs.length - 1].to;
+  const trip = tripOf(row);
+  const label = (p: { city: string; airport: string } | null | undefined, code: string) => (p?.city && p.airport === code ? `${p.city} (${code})` : code);
+  const c = record.chosen;
+  return {
+    firstName: (properName(row.name).split(" ")[0] || "there"),
+    route: `${label(trip?.from, from)} → ${label(trip?.to, to)}`,
+    options: record.offered,
+    pax: { adults: first.query.adults, children: first.query.children, infants: first.query.infants },
+    international: record.offered.some(isInternational),
+    contact: { email: c?.contact.email ?? row.email ?? "", phone: c?.contact.phone ?? row.phone ?? "" },
+    chosen: c ? { option: c.option, confirmedAt: c.confirmedAt, names: c.passengers.map((p) => `${p.given} ${p.surname}`) } : null,
+    locked: choiceLocked(row),
+  };
+}
+
+async function submitChoice(request: Request, token: string): Promise<{ ok: true; confirmedAt: string }> {
+  const { row, record } = await rowForToken(token);
+  if (choiceLocked(row)) throw new HttpError(409, "This booking is already being ticketed. Call Sunny to make a change.");
+  const body = await parseBody(request, chooseSubmitSchema);
+  const item = record.offered[body.option - 1];
+  if (!item) throw new HttpError(400, "That option isn't in the list. Choose one of the options shown.");
+  if (item.query.depart <= today()) throw new HttpError(409, "This flight date has passed. Call Sunny for new options.");
+  const passengers = body.passengers;
+  const problem = checkPassengers(item, passengers, today());
+  if (problem) throw new HttpError(400, problem);
+
+  const prev = record.chosen;
+  const chosen: CustomerChoice = {
+    option: body.option, item, passengers, contact: body.contact, notes: body.notes,
+    confirmedAt: new Date().toISOString(), ...(prev ? { edits: (prev.edits ?? 0) + 1 } : {}),
+  };
+  await updateVoice(row.id, { choice: { ...record, chosen } satisfies ChoiceRecord });
+
+  // Tell Sunny (to book) and the customer (a receipt). Best effort: the choice is already saved.
+  const origin = originOf(request), logo = `${origin}/sigma-logo.png`;
+  const customer = properName(row.name) || "The customer";
+  const toSunny = choiceForSunny(prev ? `${customer} (changed)` : customer, chosen, `${origin}/`, logo);
+  const toCustomer = choiceForCustomer(properName(row.name).split(" ")[0] || "there", chosen, logo);
+  const [a, b] = await Promise.all([
+    sendEmail(toSunny),
+    sendEmail({ ...toCustomer, to: [body.contact.email], replyTo: process.env.EMAIL_REPLY_TO?.trim() || SIGMA.email }),
+  ]);
+  if (!a.ok) console.warn(`[voice] choice email to Sunny not sent: ${a.reason}`);
+  if (!b.ok) console.warn(`[voice] choice receipt to the customer not sent: ${b.reason}`);
+  return { ok: true, confirmedAt: chosen.confirmedAt };
+}

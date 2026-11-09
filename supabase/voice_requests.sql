@@ -32,3 +32,9 @@ on conflict (id) do nothing;
 
 -- Phase C: real flights (Google Flights via SerpApi) and Sunny's chosen options.
 alter table public.voice_requests add column if not exists flights jsonb;
+
+-- Phase D: the customer chooses a flight option and enters the travellers' passport details
+-- (from the "Choose this option" buttons in the flight-options email; public page /choose/<token>).
+alter table public.voice_requests add column if not exists choice jsonb;
+alter table public.voice_requests add column if not exists choose_token text;
+create unique index if not exists voice_requests_choose_token_idx on public.voice_requests (choose_token);

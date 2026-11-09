@@ -255,6 +255,9 @@ export interface VoiceRow {
   trip?: unknown;
   /** Phase C column (absent until `alter table … add column flights jsonb` is run). */
   flights?: unknown;
+  /** Phase D: the customer's chosen option and passenger details, and the secret for their choose link. */
+  choice?: unknown;
+  choose_token?: string | null;
 }
 
 /** True when PostgREST says a column doesn't exist yet (the SQL for a new feature hasn't been run). */
@@ -271,13 +274,24 @@ export async function updateVoice(id: string, patch: Partial<VoiceRow>): Promise
   return rows[0] ?? null;
 }
 
+/** The request a customer's choose link belongs to (null: unknown link, or the column isn't there yet). */
+export async function voiceByChooseToken(token: string): Promise<VoiceRow | null> {
+  try {
+    const rows = await rest<VoiceRow[]>("loading the flight options", `voice_requests?select=*&choose_token=eq.${enc(token)}&limit=1`);
+    return rows[0] ?? null;
+  } catch (e) {
+    if (isMissingColumn(e, "choose_token")) return null;
+    throw e;
+  }
+}
+
 export async function voiceById(id: string): Promise<VoiceRow | null> {
   const rows = await rest<VoiceRow[]>("loading the voice message", `voice_requests?select=*&id=eq.${enc(id)}&limit=1`);
   return rows[0] ?? null;
 }
 
 /** A list row: everything except the heavy flights (only when and whether a search was saved) and the audio path. */
-export type VoiceListRow = Omit<VoiceRow, "flights" | "audio_path" | "audio_mime"> & { flights_at?: string | null; flights_note?: string | null };
+export type VoiceListRow = Omit<VoiceRow, "flights" | "audio_path" | "audio_mime" | "choice" | "choose_token"> & { flights_at?: string | null; flights_note?: string | null; chosen_at?: string | null };
 
 /**
  * The inbox list, light: the saved Google Flights results (up to 60 per request) stay in the database
@@ -285,14 +299,15 @@ export type VoiceListRow = Omit<VoiceRow, "flights" | "audio_path" | "audio_mime
  * trip or flights column hasn't been added yet.
  */
 export async function listVoiceLight(limit = 50): Promise<VoiceListRow[]> {
-  const cols = "id,created_at,name,phone,email,seconds,language,transcript,transcript_en,status,error,submitted_by,trip,flights_at:flights->search->>at,flights_note:flights->>note";
+  const cols = "id,created_at,name,phone,email,seconds,language,transcript,transcript_en,status,error,submitted_by,trip,flights_at:flights->search->>at,flights_note:flights->>note,chosen_at:choice->chosen->>confirmedAt";
   try {
     return await rest<VoiceListRow[]>("loading voice messages", `voice_requests?select=${cols}&order=created_at.desc&limit=${limit}`);
   } catch (e) {
-    if (!isMissingColumn(e, "trip") && !isMissingColumn(e, "flights")) throw e;
-    return (await listVoice(limit)).map(({ flights, audio_path: _p, audio_mime: _m, ...r }) => {
+    if (!isMissingColumn(e, "trip") && !isMissingColumn(e, "flights") && !isMissingColumn(e, "choice")) throw e;
+    return (await listVoice(limit)).map(({ flights, choice, choose_token: _t, audio_path: _p, audio_mime: _m, ...r }) => {
       const f = flights as { search?: { at?: string } | null; note?: string } | null | undefined;
-      return { ...r, ...(flights !== undefined ? { flights_at: f?.search?.at ?? null, flights_note: f?.note ?? null } : {}) };
+      const c = (choice as { chosen?: { confirmedAt?: string } | null } | null | undefined)?.chosen;
+      return { ...r, ...(flights !== undefined ? { flights_at: f?.search?.at ?? null, flights_note: f?.note ?? null } : {}), ...(c?.confirmedAt ? { chosen_at: c.confirmedAt } : {}) };
     });
   }
 }

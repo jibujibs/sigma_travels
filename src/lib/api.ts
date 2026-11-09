@@ -2,6 +2,7 @@ import type { ManageView, PaymentLink, PayRail, PayView, PnrResponse } from "../
 import type { IntentResponse, PlanResponse, RecommendResponse, Recommendation, TripBrief, TripPlan } from "../../shared/types";
 import type { PriceAlert } from "../../shared/priceAlert";
 import type { VoiceCheck, VoiceRequest, VoiceStatus, VoiceTrip } from "../../shared/voice";
+import type { ChooseView, ChooseSubmit } from "../../shared/choose";
 import type { FlightOption, FlightQuery, ShortlistItem } from "../../shared/flights";
 import { dropSession, getAccessToken } from "./auth";
 import type { PlanState } from "./trip";
@@ -64,6 +65,11 @@ export const api = {
     createLink: (pnr: string, rail: PayRail, email: string) => post<{ payment: PaymentLink }>("/api/paylink", { pnr, rail, email }),
     /** Write the payment to the Sabre PNR ("record") or issue the tickets ("issue"). */
     sabre: (pnr: string, action: "record" | "issue") => post<{ payment: PaymentLink }>("/api/pnr", { pnr, action }),
+  },
+  /** The customer's choose page (public link from the flight-options email). */
+  choose: {
+    view: (token: string) => request<ChooseView>("GET", `/api/voice?${q({ choose: token })}`),
+    submit: (token: string, body: ChooseSubmit) => request<{ ok: true; confirmedAt: string }>("POST", `/api/voice?${q({ choose: token })}`, body),
   },
   pay: {
     view: (token: string) => request<PayView>("GET", `/api/pay?${q({ token })}`),

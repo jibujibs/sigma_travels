@@ -32,7 +32,8 @@ const legLine = (o: FlightOption) => {
 
 export interface CustomerEmail { subject: string; html: string; text: string; filename: string }
 
-export function customerPdfEmail(customerName: string, items: ShortlistItem[], note: string, logo: string): CustomerEmail {
+/** chooseUrl: the customer's own choose page (…/choose/<token>); each option gets a "Choose this option" button. Empty: no buttons. */
+export function customerPdfEmail(customerName: string, items: ShortlistItem[], note: string, logo: string, chooseUrl = ""): CustomerEmail {
   const name = properName(customerName) || "there";
   const first = name.split(" ")[0];
   const q = items[0].query;
@@ -54,6 +55,7 @@ export function customerPdfEmail(customerName: string, items: ShortlistItem[], n
   <div style="font-size:11px;font-weight:bold;color:${C.orange};letter-spacing:.06em">OPTION ${i + 1}</div>
   <div style="font-size:14px;color:${C.ink};margin-top:3px">${esc(legLine(it.out))}</div>
   ${it.back ? `<div style="font-size:14px;color:${C.ink};margin-top:3px">Return: ${esc(legLine(it.back))}</div>` : ""}
+  ${chooseUrl ? `<a href="${esc(`${chooseUrl}?o=${i + 1}`)}" style="display:inline-block;margin-top:10px;background:${C.teal};color:#ffffff;text-decoration:none;font-weight:bold;font-size:14px;padding:9px 16px;border-radius:8px">Choose this option</a>` : ""}
 </td><td align="right" style="${font}padding:12px 14px;border-bottom:1px solid ${C.line};vertical-align:top;white-space:nowrap">
   <div style="font-size:16px;font-weight:bold;color:${C.ink}">${esc(money(it.price, currencyOf(it)))}</div>
   ${it.price != null && people > 1 ? `<div style="font-size:12px;color:${C.muted}">about ${esc(money(it.price / people, currencyOf(it)))} each</div>` : ""}
@@ -76,7 +78,10 @@ export function customerPdfEmail(customerName: string, items: ShortlistItem[], n
   <div style="${font}font-size:12px;color:${C.muted};margin:8px 0 0">Prices are the total for all travellers, from Google Flights today, and can change until the tickets are booked.</div>
 </td></tr>
 <tr><td style="padding:16px 28px 24px;${font}font-size:15px;line-height:1.55;color:${C.ink}">
-  <p style="margin:0 0 12px">To book, just reply to this email with the option you like, or call us on <a href="tel:+12142213300" style="color:${C.teal};font-weight:bold;text-decoration:none">${SIGMA.phone}</a>.</p>
+  ${chooseUrl
+    ? `<p style="margin:0 0 12px">To book, press <b>Choose this option</b> under the flight you like and enter each traveller's details as in their passport. Keep the passports handy. Sunny will then book it and send you a secure payment link.</p>
+  <p style="margin:0 0 12px">Questions? Call us on <a href="tel:+12142213300" style="color:${C.teal};font-weight:bold;text-decoration:none">${SIGMA.phone}</a>.</p>`
+    : `<p style="margin:0 0 12px">To book, just reply to this email with the option you like, or call us on <a href="tel:+12142213300" style="color:${C.teal};font-weight:bold;text-decoration:none">${SIGMA.phone}</a>.</p>`}
   <p style="margin:0">Best regards,<br><b>Sunny</b><br>${SIGMA.company}</p>
 </td></tr>
 <tr><td style="padding:14px 28px 18px;background:${C.soft};${font}font-size:11px;line-height:1.5;color:${C.muted}">
@@ -88,9 +93,9 @@ export function customerPdfEmail(customerName: string, items: ShortlistItem[], n
     `Hi ${first},`,
     `Here ${items.length > 1 ? `are ${items.length} flight options` : "is a flight option"} for your trip from ${cityFrom} (${from}) to ${cityTo} (${to}), ${when}, for ${who}. The full details are in the attached PDF.`,
     note,
-    items.map((it, i) => `Option ${i + 1}: ${legLine(it.out)}${it.back ? `\n   Return: ${legLine(it.back)}` : ""}\n   ${money(it.price, currencyOf(it))} total`).join("\n\n"),
+    items.map((it, i) => `Option ${i + 1}: ${legLine(it.out)}${it.back ? `\n   Return: ${legLine(it.back)}` : ""}\n   ${money(it.price, currencyOf(it))} total${chooseUrl ? `\n   Choose this option: ${chooseUrl}?o=${i + 1}` : ""}`).join("\n\n"),
     "Prices are from Google Flights today and can change until the tickets are booked.",
-    `To book, reply to this email with the option you like, or call us on ${SIGMA.phone}.`,
+    chooseUrl ? `To book, open the link under the option you like and enter each traveller's details as in their passport. Questions? Call ${SIGMA.phone}.` : `To book, reply to this email with the option you like, or call us on ${SIGMA.phone}.`,
     `Best regards,\nSunny\n${SIGMA.company}\n${SIGMA.address} · ${SIGMA.email} · ${SIGMA.web}`,
   ].filter(Boolean).join("\n\n");
 
